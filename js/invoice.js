@@ -1,0 +1,456 @@
+// invoice.js - Invoice Builder & Logic
+
+const InvoiceManager = {
+    currentItems: [],
+    invoices: [],
+    
+    async init() {
+        this.bindEvents();
+        await this.loadHistory();
+    },
+
+    async loadHistory() {
+        try {
+            this.invoices = await window.appDB.getAll('invoices');
+            // Sort by date descending
+            this.invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
+            this.renderHistory();
+        } catch (e) {
+            console.error(e);
+        }
+    },
+
+    renderHistory() {
+        const tbody = document.getElementById('history-body');
+        tbody.innerHTML = '';
+        
+        if (this.invoices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No saved invoices.</td></tr>';
+            return;
+        }
+
+        this.invoices.forEach(inv => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${Utils.formatDate(inv.date)}</td>
+                <td>${inv.number}</td>
+                <td>${this.escapeHTML(inv.customer.name)}</td>
+                <td><strong>${Utils.formatCurrency(inv.grandTotal)}</strong></td>
+                <td>
+                    <button class="btn btn-outline btn-sm" onclick="InvoiceManager.viewInvoice('${inv.id}')">View</button>
+                    <button class="btn btn-danger btn-sm" onclick="InvoiceManager.deleteInvoice('${inv.id}')">Del</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    },
+
+    bindEvents() {
+        // Toggle new invoice form
+        document.getElementById('btn-new-invoice').addEventListener('click', () => {
+            this.startNewInvoice();
+        });
+
+        document.getElementById('btn-cancel-invoice').addEventListener('click', () => {
+            document.getElementById('invoice-editor').style.display = 'none';
+            document.getElementById('invoice-history').style.display = 'block';
+            document.getElementById('btn-new-invoice').style.display = 'inline-flex';
+        });
+
+        // Add Item row
+        document.getElementById('btn-add-item').addEventListener('click', () => {
+            this.addLineItem();
+        });
+
+        // Invoice Discount change
+        document.getElementById('inv-discount-total').addEventListener('input', () => {
+            this.calculateTotals();
+        });
+
+        // Save Invoice
+        document.getElementById('btn-save-invoice').addEventListener('click', () => {
+            this.saveInvoice();
+        });
+
+        // Print Invoice
+        document.getElementById('btn-print-invoice').addEventListener('click', () => {
+            this.preparePrint();
+            window.print();
+        });
+
+        // Autocomplete click outside to close
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-dropdown') && !e.target.closest('.product-search-input')) {
+                document.getElementById('autocomplete-dropdown').style.display = 'none';
+            }
+        });
+    },
+
+    startNewInvoice() {
+        this.currentItems = [];
+        
+        // Reset fields
+        document.getElementById('inv-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('inv-number').value = '';
+        
+        document.getElementById('cust-name').value = '';
+        document.getElementById('cust-phone').value = '';
+        document.getElementById('cust-email').value = '';
+        document.getElementById('cust-address').value = '';
+        
+        document.getElementById('inv-discount-total').value = 0;
+        
+        document.getElementById('invoice-items-body').innerHTML = '';
+        
+        // Add one empty row to start
+        this.addLineItem();
+        this.calculateTotals();
+
+        // UI Toggle
+        document.getElementById('invoice-editor').style.display = 'block';
+        document.getElementById('invoice-history').style.display = 'none';
+        document.getElementById('btn-new-invoice').style.display = 'none';
+    },
+
+    addLineItem(data = null) {
+        const tbody = document.getElementById('invoice-items-body');
+        const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
+        
+        const tr = document.createElement('tr');
+        tr.id = rowId;
+        
+        tr.innerHTML = `
+            <td style="position:relative;">
+                <input type="text" class="form-control product-search-input" placeholder="Search product..." autocomplete="off">
+                <input type="hidden" class="item-product-id">
+            </td>
+            <td><input type="number" class="form-control item-qty" value="1" min="1"></td>
+            <td><input type="number" class="form-control item-price" value="0" step="0.01"></td>
+            <td><input type="number" class="form-control item-gst" value="0" step="0.1"></td>
+            <td><input type="number" class="form-control item-discount" value="0" step="0.01"></td>
+            <td class="item-total">₹0.00</td>
+            <td class="no-print">
+                <button class="btn btn-danger btn-sm" onclick="InvoiceManager.removeLineItem('${rowId}')">✕</button>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+        
+        // Bind row events
+        this.bindRowEvents(tr);
+
+        if (data) {
+            // Populate if viewing existing
+            const inputs = tr.querySelectorAll('input');
+            inputs[0].value = data.name + (data.variant ? ` (${data.variant})` : '');
+            inputs[1].value = data.productId;
+            inputs[2].value = data.qty;
+            inputs[3].value = data.price;
+            inputs[4].value = data.gstPercent;
+            inputs[5].value = data.discount;
+            this.calculateRowTotal(tr);
+        }
+    },
+
+    removeLineItem(rowId) {
+        const row = document.getElementById(rowId);
+        if (row) {
+            row.remove();
+            this.calculateTotals();
+        }
+    },
+
+    bindRowEvents(row) {
+        const searchInput = row.querySelector('.product-search-input');
+        const qtyInput = row.querySelector('.item-qty');
+        const priceInput = row.querySelector('.item-price');
+        const gstInput = row.querySelector('.item-gst');
+        const discountInput = row.querySelector('.item-discount');
+
+        // Autocomplete
+        searchInput.addEventListener('input', async (e) => {
+            const val = e.target.value.toLowerCase();
+            const dropdown = document.getElementById('autocomplete-dropdown');
+            
+            if (val.length < 2) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            // Get products
+            const products = await window.appDB.getAll('products');
+            const matches = products.filter(p => 
+                p.name.toLowerCase().includes(val) || 
+                (p.company && p.company.toLowerCase().includes(val))
+            ).slice(0, 10); // max 10
+
+            if (matches.length > 0) {
+                dropdown.innerHTML = '';
+                matches.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-item';
+                    const stockWarn = p.stockQty <= 0 ? ' (Out of Stock)' : ` (Stock: ${p.stockQty})`;
+                    div.innerHTML = `
+                        <span class="item-name">${this.escapeHTML(p.name)} ${p.sizeUnit ? '- '+p.sizeUnit : ''}</span>
+                        <span class="item-meta">${this.escapeHTML(p.company || '')} | ₹${p.unitPrice} | ${stockWarn}</span>
+                    `;
+                    div.addEventListener('click', () => {
+                        // Apply product to row
+                        searchInput.value = `${p.name} ${p.sizeUnit ? `(${p.sizeUnit})` : ''}`;
+                        row.querySelector('.item-product-id').value = p.id;
+                        priceInput.value = p.unitPrice;
+                        gstInput.value = p.gstPercent || 0;
+                        dropdown.style.display = 'none';
+                        this.calculateRowTotal(row);
+                        this.calculateTotals();
+                    });
+                    dropdown.appendChild(div);
+                });
+                
+                // Position dropdown
+                const rect = searchInput.getBoundingClientRect();
+                dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+                dropdown.style.left = (rect.left + window.scrollX) + 'px';
+                dropdown.style.width = rect.width + 'px';
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Recalculate on input change
+        [qtyInput, priceInput, gstInput, discountInput].forEach(inp => {
+            inp.addEventListener('input', () => {
+                this.calculateRowTotal(row);
+                this.calculateTotals();
+            });
+        });
+    },
+
+    calculateRowTotal(row) {
+        const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        const gstPercent = parseFloat(row.querySelector('.item-gst').value) || 0;
+        const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
+
+        const baseTotal = qty * price;
+        const afterDiscount = Math.max(0, baseTotal - discount);
+        const gstAmount = afterDiscount * (gstPercent / 100);
+        const finalTotal = afterDiscount + gstAmount;
+
+        row.querySelector('.item-total').textContent = Utils.formatCurrency(finalTotal);
+        
+        // Store raw values in dataset for easy aggregation
+        row.dataset.baseTotal = baseTotal;
+        row.dataset.gstAmount = gstAmount;
+        row.dataset.itemDiscount = discount;
+        row.dataset.finalTotal = finalTotal;
+    },
+
+    calculateTotals() {
+        let subtotal = 0;
+        let totalGst = 0;
+        let itemDiscount = 0;
+
+        const rows = document.querySelectorAll('#invoice-items-body tr');
+        rows.forEach(row => {
+            if (row.dataset.baseTotal) {
+                subtotal += parseFloat(row.dataset.baseTotal);
+                totalGst += parseFloat(row.dataset.gstAmount);
+                itemDiscount += parseFloat(row.dataset.itemDiscount);
+            }
+        });
+
+        const invDiscount = parseFloat(document.getElementById('inv-discount-total').value) || 0;
+        
+        // Subtotal is sum of (qty*price)
+        // Grand Total = Subtotal - itemDiscounts - invDiscount + totalGst
+        const grandTotal = Math.max(0, subtotal - itemDiscount - invDiscount + totalGst);
+
+        document.getElementById('summ-subtotal').textContent = Utils.formatCurrency(subtotal);
+        document.getElementById('summ-gst').textContent = Utils.formatCurrency(totalGst);
+        document.getElementById('summ-item-discount').textContent = '-' + Utils.formatCurrency(itemDiscount);
+        document.getElementById('summ-inv-discount').textContent = '-' + Utils.formatCurrency(invDiscount);
+        document.getElementById('summ-total').textContent = Utils.formatCurrency(grandTotal);
+    },
+
+    async saveInvoice() {
+        const custName = document.getElementById('cust-name').value.trim();
+        if (!custName) {
+            Utils.showToast("Customer Name is required", "error");
+            return;
+        }
+
+        // Validate items
+        const rows = document.querySelectorAll('#invoice-items-body tr');
+        const items = [];
+        let valid = true;
+        
+        rows.forEach(row => {
+            const nameInput = row.querySelector('.product-search-input').value.trim();
+            const productId = row.querySelector('.item-product-id').value;
+            const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+            const price = parseFloat(row.querySelector('.item-price').value) || 0;
+            
+            if (nameInput && qty > 0) {
+                items.push({
+                    name: nameInput,
+                    productId: productId, // could be empty if free-text item
+                    qty: qty,
+                    price: price,
+                    gstPercent: parseFloat(row.querySelector('.item-gst').value) || 0,
+                    discount: parseFloat(row.querySelector('.item-discount').value) || 0,
+                    total: parseFloat(row.dataset.finalTotal) || 0
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            Utils.showToast("Add at least one valid line item", "error");
+            return;
+        }
+
+        // Generate Invoice Number if empty
+        let invNumber = document.getElementById('inv-number').value.trim();
+        if (!invNumber) {
+            // Get count for today for simple sequence
+            const todayPrefix = window.ProfileManager.profileData.prefix + new Date().toISOString().split('T')[0].replace(/-/g, '') + '-';
+            const todays = this.invoices.filter(i => i.number.startsWith(todayPrefix)).length;
+            invNumber = todayPrefix + String(todays + 1).padStart(3, '0');
+        }
+
+        // Collect Totals
+        const grandTotalStr = document.getElementById('summ-total').textContent.replace(/[^\d.-]/g, '');
+
+        const invoiceRecord = {
+            id: Utils.generateUUID(),
+            date: document.getElementById('inv-date').value,
+            number: invNumber,
+            customer: {
+                name: custName,
+                phone: document.getElementById('cust-phone').value,
+                email: document.getElementById('cust-email').value,
+                address: document.getElementById('cust-address').value
+            },
+            items: items,
+            invDiscount: parseFloat(document.getElementById('inv-discount-total').value) || 0,
+            grandTotal: parseFloat(grandTotalStr)
+        };
+
+        try {
+            // Save Invoice
+            await window.appDB.put('invoices', invoiceRecord);
+            
+            // Deduct Stock for linked products
+            for (const item of items) {
+                if (item.productId) {
+                    const product = await window.appDB.get('products', item.productId);
+                    if (product) {
+                        product.stockQty -= item.qty;
+                        await window.appDB.put('products', product);
+                    }
+                }
+            }
+
+            Utils.showToast("Invoice Saved & Stock Updated!", "success");
+            
+            // Re-render inventory if it's cached/loaded
+            if (window.InventoryManager) {
+                window.InventoryManager.loadInventory();
+            }
+
+            // Go back to history
+            document.getElementById('invoice-editor').style.display = 'none';
+            document.getElementById('invoice-history').style.display = 'block';
+            document.getElementById('btn-new-invoice').style.display = 'inline-flex';
+            await this.loadHistory();
+
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("Failed to save invoice", "error");
+        }
+    },
+    
+    async viewInvoice(id) {
+        const inv = this.invoices.find(i => i.id === id);
+        if (!inv) return;
+        
+        // This is a basic view - populate the editor but disable saving
+        document.getElementById('inv-date').value = inv.date;
+        document.getElementById('inv-number').value = inv.number;
+        
+        document.getElementById('cust-name').value = inv.customer.name;
+        document.getElementById('cust-phone').value = inv.customer.phone;
+        document.getElementById('cust-email').value = inv.customer.email;
+        document.getElementById('cust-address').value = inv.customer.address;
+        
+        document.getElementById('inv-discount-total').value = inv.invDiscount || 0;
+        
+        const tbody = document.getElementById('invoice-items-body');
+        tbody.innerHTML = '';
+        
+        inv.items.forEach(item => {
+            // Format for addLineItem
+            const rowData = {
+                name: item.name,
+                productId: item.productId,
+                qty: item.qty,
+                price: item.price,
+                gstPercent: item.gstPercent,
+                discount: item.discount
+            };
+            this.addLineItem(rowData);
+        });
+        
+        this.calculateTotals();
+        
+        // Hide save button, show print and cancel
+        document.getElementById('btn-save-invoice').style.display = 'none';
+        
+        // UI Toggle
+        document.getElementById('invoice-editor').style.display = 'block';
+        document.getElementById('invoice-history').style.display = 'none';
+        document.getElementById('btn-new-invoice').style.display = 'none';
+    },
+
+    async deleteInvoice(id) {
+        if(confirm("Delete this invoice? This will NOT restore inventory stock.")) {
+            try {
+                await window.appDB.delete('invoices', id);
+                Utils.showToast("Invoice deleted");
+                await this.loadHistory();
+            } catch(e) {
+                Utils.showToast("Failed to delete invoice", "error");
+            }
+        }
+    },
+
+    preparePrint() {
+        // Populate the print-only header with profile details
+        const header = document.getElementById('print-header');
+        const p = window.ProfileManager.profileData;
+        
+        header.innerHTML = `
+            ${p.logo ? `<img src="${p.logo}" alt="Logo">` : ''}
+            <h1>${this.escapeHTML(p.name)}</h1>
+            <p>${this.escapeHTML(p.address).replace(/\n/g, '<br>')}</p>
+            ${p.phone ? `<p>Phone: ${this.escapeHTML(p.phone)}</p>` : ''}
+            ${p.gstin ? `<p>GSTIN: ${this.escapeHTML(p.gstin)}</p>` : ''}
+        `;
+    },
+
+    escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/[&<>'"]/g, 
+            tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag] || tag)
+        );
+    }
+};
+
+window.InvoiceManager = InvoiceManager;

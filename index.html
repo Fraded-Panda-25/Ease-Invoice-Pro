@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ease Invoice</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body class="theme-dark">
+    <!-- App Layout Shell -->
+    <div class="app-container">
+        <!-- Sidebar / Nav (Hidden during print) -->
+        <aside class="sidebar no-print">
+            <div class="logo-container">
+                <img id="nav-logo" src="" alt="Business Logo" style="display:none;" class="nav-logo-img">
+                <h2 id="nav-biz-name">Ease Invoice</h2>
+            </div>
+            <nav class="main-nav">
+                <a href="#dashboard" class="nav-link active" data-target="view-dashboard">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                    Dashboard (Invoice)
+                </a>
+                <a href="#inventory" class="nav-link" data-target="view-inventory">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    Inventory
+                </a>
+                <a href="#settings" class="nav-link" data-target="view-settings">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    Settings
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="theme-toggle" class="btn btn-outline">
+                    <span class="light-icon" style="display:none;">🌙 Dark Mode</span>
+                    <span class="dark-icon">☀️ Light Mode</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- Dashboard / Invoice View -->
+            <section id="view-dashboard" class="view active">
+                <header class="view-header no-print">
+                    <h1>Invoice Builder</h1>
+                    <button class="btn btn-primary" id="btn-new-invoice">New Invoice</button>
+                </header>
+                
+                <div class="view-body">
+                    <!-- Invoice Form (Hidden initially, toggled with New Invoice) -->
+                    <div id="invoice-editor" class="card" style="display:none;">
+                        <div class="invoice-header-print print-only" id="print-header">
+                            <!-- Populated on print from profile -->
+                        </div>
+                        
+                        <div class="invoice-meta no-print">
+                            <div class="form-group">
+                                <label>Invoice Date</label>
+                                <input type="date" id="inv-date">
+                            </div>
+                            <div class="form-group">
+                                <label>Invoice No. (Auto/Custom)</label>
+                                <input type="text" id="inv-number" placeholder="Leave empty for auto">
+                            </div>
+                        </div>
+
+                        <div class="customer-section">
+                            <h3 class="section-title">Customer Details</h3>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Customer Name</label>
+                                    <input type="text" id="cust-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone Number</label>
+                                    <input type="tel" id="cust-phone">
+                                </div>
+                                <div class="form-group">
+                                    <label>Email (Optional)</label>
+                                    <input type="email" id="cust-email">
+                                </div>
+                                <div class="form-group">
+                                    <label>Address</label>
+                                    <input type="text" id="cust-address">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="items-section">
+                            <h3 class="section-title">Line Items</h3>
+                            <div class="table-responsive">
+                                <table class="items-table" id="invoice-items-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="min-width: 250px;">Item/Product</th>
+                                            <th width="10%">Qty</th>
+                                            <th width="15%">Price</th>
+                                            <th width="10%">GST %</th>
+                                            <th width="15%">Discount</th>
+                                            <th width="15%">Total</th>
+                                            <th width="5%" class="no-print"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="invoice-items-body">
+                                        <!-- Rows added dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button class="btn btn-outline btn-sm no-print" id="btn-add-item">+ Add Item</button>
+                        </div>
+
+                        <div class="invoice-totals grid-2">
+                            <div>
+                                <!-- General Invoice Discount -->
+                                <div class="form-group no-print">
+                                    <label>Invoice Level Discount (Flat)</label>
+                                    <input type="number" id="inv-discount-total" value="0" step="0.01">
+                                </div>
+                            </div>
+                            <div class="totals-summary">
+                                <div class="summary-row">
+                                    <span>Subtotal:</span>
+                                    <span id="summ-subtotal">₹0.00</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>GST Amount:</span>
+                                    <span id="summ-gst">₹0.00</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>Item Discounts:</span>
+                                    <span id="summ-item-discount">-₹0.00</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span>Invoice Discount:</span>
+                                    <span id="summ-inv-discount">-₹0.00</span>
+                                </div>
+                                <div class="summary-row grand-total">
+                                    <span>Grand Total:</span>
+                                    <span id="summ-total">₹0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="invoice-actions no-print">
+                            <button class="btn btn-secondary" id="btn-cancel-invoice">Cancel</button>
+                            <button class="btn btn-outline" id="btn-print-invoice">Print</button>
+                            <button class="btn btn-primary" id="btn-save-invoice">Save & Finalize</button>
+                        </div>
+                    </div>
+
+                    <!-- Invoice History List -->
+                    <div id="invoice-history" class="no-print">
+                        <h3 class="section-title">Recent Invoices</h3>
+                        <div class="table-responsive">
+                            <table class="data-table" id="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Invoice #</th>
+                                        <th>Customer</th>
+                                        <th>Total</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-body">
+                                    <!-- Dynamically populated -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Inventory View -->
+            <section id="view-inventory" class="view" style="display:none;">
+                <header class="view-header">
+                    <h1>Inventory Database</h1>
+                    <button class="btn btn-primary" id="btn-add-product">Add Product</button>
+                </header>
+                
+                <div class="view-body">
+                    <!-- Product Form Modal/Section -->
+                    <div id="product-editor" class="card" style="display:none; margin-bottom: 2rem;">
+                        <h3 id="product-form-title" class="section-title">Add New Product</h3>
+                        <form id="form-product">
+                            <input type="hidden" id="prod-id">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Product Name*</label>
+                                    <input type="text" id="prod-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Manufacturer/Company</label>
+                                    <input type="text" id="prod-company">
+                                </div>
+                                <div class="form-group">
+                                    <label>Variant / Size / Unit</label>
+                                    <input type="text" id="prod-variant" placeholder="e.g. 5ml, XXL, Box of 10">
+                                </div>
+                                <div class="form-group">
+                                    <label>Unit Price (₹)*</label>
+                                    <input type="number" id="prod-price" required step="0.01">
+                                </div>
+                                <div class="form-group">
+                                    <label>Default GST %</label>
+                                    <input type="number" id="prod-gst" value="0" step="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Current Stock Quantity*</label>
+                                    <input type="number" id="prod-stock" required value="0">
+                                </div>
+                                <div class="form-group">
+                                    <label>Low Stock Alert Threshold</label>
+                                    <input type="number" id="prod-threshold" value="5">
+                                </div>
+                            </div>
+                            <div class="form-actions" style="margin-top:1rem; display:flex; gap:1rem;">
+                                <button type="button" class="btn btn-secondary" id="btn-cancel-product">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Product</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="search-bar" style="margin-bottom: 1rem;">
+                        <input type="text" id="search-inventory" placeholder="Search by name, company, variant..." class="form-control">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Company</th>
+                                    <th>Variant</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-body">
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="view-settings" class="view" style="display:none;">
+                <header class="view-header">
+                    <h1>Settings & Profile</h1>
+                </header>
+                
+                <div class="view-body grid-2">
+                    <div class="card">
+                        <h3 class="section-title">Business Profile</h3>
+                        <form id="form-profile">
+                            <div class="form-group">
+                                <label>Business Name</label>
+                                <input type="text" id="biz-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Business Address</label>
+                                <textarea id="biz-address" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>GSTIN / Tax ID</label>
+                                <input type="text" id="biz-gstin">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="text" id="biz-phone">
+                            </div>
+                            <div class="form-group">
+                                <label>Invoice Prefix (e.g. INV-)</label>
+                                <input type="text" id="biz-prefix" value="INV-">
+                            </div>
+                            <div class="form-group">
+                                <label>Business Logo</label>
+                                <input type="file" id="biz-logo" accept="image/*">
+                                <div id="logo-preview-container" style="margin-top: 10px;">
+                                    <img id="logo-preview" style="max-width: 150px; display:none;" />
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Profile</button>
+                        </form>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="section-title">Data Management</h3>
+                        <p class="text-muted">Your data is stored locally in your browser. Backup regularly to avoid data loss.</p>
+                        
+                        <div class="data-actions" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                            <button class="btn btn-outline" id="btn-export-data">
+                                📥 Export Data (Backup)
+                            </button>
+                            
+                            <div class="import-section" style="border: 1px dashed var(--border-color); padding: 1rem; border-radius: var(--radius);">
+                                <h4>Restore Data</h4>
+                                <input type="file" id="import-file" accept=".json" style="margin-bottom: 0.5rem;" class="form-control">
+                                <button class="btn btn-secondary" id="btn-import-data" style="margin-top:0.5rem;">
+                                    📤 Import Data
+                                </button>
+                                <small class="text-error" style="display:block; margin-top:0.5rem;">Warning: This will overwrite existing data!</small>
+                            </div>
+                            
+                            <div class="danger-zone" style="border: 1px solid var(--danger); padding: 1rem; border-radius: var(--radius); margin-top: 1rem;">
+                                <h4 class="text-error" style="margin-top:0;">Danger Zone</h4>
+                                <button class="btn btn-danger" id="btn-clear-data">Reset All Data</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container no-print"></div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/inventory.js"></script>
+    <script src="js/invoice.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
