@@ -135,14 +135,14 @@ const InvoiceManager = {
         
         tr.innerHTML = `
             <td style="position:relative;">
-                <input type="text" class="form-control product-search-input" placeholder="Search product..." autocomplete="off">
+                <input type="text" class="form-control product-search-input" placeholder="Type product name..." autocomplete="off">
                 <input type="hidden" class="item-product-id">
             </td>
-            <td><input type="text" class="form-control item-company" placeholder="Company"></td>
-            <td><input type="text" class="form-control item-variant" placeholder="Variant"></td>
+            <td><input type="text" class="form-control item-company" placeholder="—" readonly tabindex="-1"></td>
+            <td><input type="text" class="form-control item-variant" placeholder="—" readonly tabindex="-1"></td>
             <td><input type="number" class="form-control item-qty" value="1" min="1"></td>
-            <td><input type="number" class="form-control item-price" value="0" step="0.01"></td>
-            <td><input type="number" class="form-control item-gst" value="0" step="0.1"></td>
+            <td><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
+            <td><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
             <td><input type="number" class="form-control item-discount" value="0" step="0.01"></td>
             <td class="item-total">₹0.00</td>
             <td class="no-print">
@@ -156,7 +156,7 @@ const InvoiceManager = {
         this.bindRowEvents(tr);
 
         if (data) {
-            // Populate if viewing existing
+            // Populate if viewing existing invoice
             tr.querySelector('.product-search-input').value = data.name || '';
             tr.querySelector('.item-product-id').value = data.productId || '';
             tr.querySelector('.item-company').value = data.company || '';
@@ -184,63 +184,109 @@ const InvoiceManager = {
         const gstInput = row.querySelector('.item-gst');
         const discountInput = row.querySelector('.item-discount');
 
-        // Autocomplete
+        // Autocomplete - grouped by product name, showing company/variant options
         searchInput.addEventListener('input', async (e) => {
-            const val = e.target.value.toLowerCase();
+            const val = e.target.value.toLowerCase().trim();
             const dropdown = document.getElementById('autocomplete-dropdown');
             
-            if (val.length < 2) {
+            if (val.length < 1) {
                 dropdown.style.display = 'none';
                 return;
             }
 
-            // Get products
+            // Get all products and filter (case-insensitive)
             const products = await window.appDB.getAll('products');
             const matches = products.filter(p => 
                 p.name.toLowerCase().includes(val) || 
-                (p.company && p.company.toLowerCase().includes(val))
-            ).slice(0, 10); // max 10
+                (p.company && p.company.toLowerCase().includes(val)) ||
+                (p.sizeUnit && p.sizeUnit.toLowerCase().includes(val))
+            ).slice(0, 15);
 
             if (matches.length > 0) {
                 dropdown.innerHTML = '';
+
+                // Group by product name for clarity
+                const grouped = {};
                 matches.forEach(p => {
-                    const div = document.createElement('div');
-                    div.className = 'autocomplete-item';
-                    const stockWarn = p.stockQty <= 0 ? ' (Out of Stock)' : ` (Stock: ${p.stockQty})`;
-                    div.innerHTML = `
-                        <span class="item-name">${this.escapeHTML(p.name)} ${p.sizeUnit ? '- '+p.sizeUnit : ''}</span>
-                        <span class="item-meta">${this.escapeHTML(p.company || '')} | ₹${p.unitPrice} | ${stockWarn}</span>
-                    `;
-                    div.addEventListener('click', () => {
-                        // Apply product to row
-                        searchInput.value = p.name;
-                        row.querySelector('.item-product-id').value = p.id;
-                        row.querySelector('.item-company').value = p.company || '';
-                        row.querySelector('.item-variant').value = p.sizeUnit || '';
-                        priceInput.value = p.unitPrice;
-                        gstInput.value = p.gstPercent || 0;
-                        dropdown.style.display = 'none';
-                        this.calculateRowTotal(row);
-                        this.calculateTotals();
+                    const key = p.name.toLowerCase();
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(p);
+                });
+
+                Object.keys(grouped).forEach(nameKey => {
+                    const group = grouped[nameKey];
+                    
+                    // Product name header
+                    const header = document.createElement('div');
+                    header.className = 'autocomplete-group-header';
+                    header.textContent = group[0].name;
+                    dropdown.appendChild(header);
+
+                    // Each company/variant combo under this product
+                    group.forEach(p => {
+                        const div = document.createElement('div');
+                        div.className = 'autocomplete-item';
+                        const stockLabel = p.stockQty <= 0 
+                            ? '<span class="text-error">Out of Stock</span>' 
+                            : `<span class="text-success">Stock: ${p.stockQty}</span>`;
+                        
+                        div.innerHTML = `
+                            <div class="ac-row">
+                                <span class="ac-company">${this.escapeHTML(p.company || 'No Company')}</span>
+                                <span class="ac-variant">${this.escapeHTML(p.sizeUnit || 'No Variant')}</span>
+                            </div>
+                            <div class="ac-row-sub">
+                                <span>₹${p.unitPrice}</span>
+                                <span>GST ${p.gstPercent || 0}%</span>
+                                ${stockLabel}
+                            </div>
+                        `;
+                        div.addEventListener('click', () => {
+                            // Auto-fill ALL fields from inventory
+                            searchInput.value = p.name;
+                            row.querySelector('.item-product-id').value = p.id;
+                            row.querySelector('.item-company').value = p.company || '';
+                            row.querySelector('.item-variant').value = p.sizeUnit || '';
+                            priceInput.value = p.unitPrice;
+                            gstInput.value = p.gstPercent || 0;
+                            // Discount stays at 0 (user can edit)
+                            dropdown.style.display = 'none';
+                            this.calculateRowTotal(row);
+                            this.calculateTotals();
+                            // Move focus to qty so user can set quantity next
+                            qtyInput.focus();
+                            qtyInput.select();
+                        });
+                        dropdown.appendChild(div);
                     });
-                    dropdown.appendChild(div);
                 });
                 
-                // Position dropdown
+                // Position dropdown near the search input
                 const rect = searchInput.getBoundingClientRect();
                 dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
                 dropdown.style.left = (rect.left + window.scrollX) + 'px';
-                dropdown.style.width = rect.width + 'px';
+                dropdown.style.width = Math.max(rect.width, 350) + 'px';
                 dropdown.style.display = 'block';
             } else {
                 dropdown.style.display = 'none';
             }
         });
 
-        // Recalculate on input change
-        const companyInput = row.querySelector('.item-company');
-        const variantInput = row.querySelector('.item-variant');
-        [qtyInput, priceInput, gstInput, discountInput, companyInput, variantInput].forEach(inp => {
+        // When user clears the search field, also clear auto-filled fields
+        searchInput.addEventListener('change', () => {
+            if (!searchInput.value.trim()) {
+                row.querySelector('.item-product-id').value = '';
+                row.querySelector('.item-company').value = '';
+                row.querySelector('.item-variant').value = '';
+                priceInput.value = 0;
+                gstInput.value = 0;
+                this.calculateRowTotal(row);
+                this.calculateTotals();
+            }
+        });
+
+        // Recalculate on qty/discount change (these are the only user-editable numeric fields)
+        [qtyInput, discountInput].forEach(inp => {
             inp.addEventListener('input', () => {
                 this.calculateRowTotal(row);
                 this.calculateTotals();
