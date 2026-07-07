@@ -20,16 +20,17 @@ const InvoiceManager = {
         }
     },
 
-    renderHistory() {
+    renderHistory(invoicesList = null) {
+        const list = invoicesList || this.invoices;
         const tbody = document.getElementById('history-body');
         tbody.innerHTML = '';
         
-        if (this.invoices.length === 0) {
+        if (list.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No saved invoices.</td></tr>';
             return;
         }
 
-        this.invoices.forEach(inv => {
+        list.forEach(inv => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${Utils.formatDate(inv.date)}</td>
@@ -84,6 +85,19 @@ const InvoiceManager = {
                 document.getElementById('autocomplete-dropdown').style.display = 'none';
             }
         });
+
+        // History search
+        const searchHistory = document.getElementById('search-history');
+        if (searchHistory) {
+            searchHistory.addEventListener('input', (e) => {
+                const val = e.target.value.toLowerCase();
+                const filtered = this.invoices.filter(inv => 
+                    inv.number.toLowerCase().includes(val) || 
+                    inv.customer.name.toLowerCase().includes(val)
+                );
+                this.renderHistory(filtered);
+            });
+        }
     },
 
     startNewInvoice() {
@@ -124,6 +138,8 @@ const InvoiceManager = {
                 <input type="text" class="form-control product-search-input" placeholder="Search product..." autocomplete="off">
                 <input type="hidden" class="item-product-id">
             </td>
+            <td><input type="text" class="form-control item-company" placeholder="Company"></td>
+            <td><input type="text" class="form-control item-variant" placeholder="Variant"></td>
             <td><input type="number" class="form-control item-qty" value="1" min="1"></td>
             <td><input type="number" class="form-control item-price" value="0" step="0.01"></td>
             <td><input type="number" class="form-control item-gst" value="0" step="0.1"></td>
@@ -141,13 +157,14 @@ const InvoiceManager = {
 
         if (data) {
             // Populate if viewing existing
-            const inputs = tr.querySelectorAll('input');
-            inputs[0].value = data.name + (data.variant ? ` (${data.variant})` : '');
-            inputs[1].value = data.productId;
-            inputs[2].value = data.qty;
-            inputs[3].value = data.price;
-            inputs[4].value = data.gstPercent;
-            inputs[5].value = data.discount;
+            tr.querySelector('.product-search-input').value = data.name || '';
+            tr.querySelector('.item-product-id').value = data.productId || '';
+            tr.querySelector('.item-company').value = data.company || '';
+            tr.querySelector('.item-variant').value = data.variant || '';
+            tr.querySelector('.item-qty').value = data.qty;
+            tr.querySelector('.item-price').value = data.price;
+            tr.querySelector('.item-gst').value = data.gstPercent;
+            tr.querySelector('.item-discount').value = data.discount;
             this.calculateRowTotal(tr);
         }
     },
@@ -196,8 +213,10 @@ const InvoiceManager = {
                     `;
                     div.addEventListener('click', () => {
                         // Apply product to row
-                        searchInput.value = `${p.name} ${p.sizeUnit ? `(${p.sizeUnit})` : ''}`;
+                        searchInput.value = p.name;
                         row.querySelector('.item-product-id').value = p.id;
+                        row.querySelector('.item-company').value = p.company || '';
+                        row.querySelector('.item-variant').value = p.sizeUnit || '';
                         priceInput.value = p.unitPrice;
                         gstInput.value = p.gstPercent || 0;
                         dropdown.style.display = 'none';
@@ -219,7 +238,9 @@ const InvoiceManager = {
         });
 
         // Recalculate on input change
-        [qtyInput, priceInput, gstInput, discountInput].forEach(inp => {
+        const companyInput = row.querySelector('.item-company');
+        const variantInput = row.querySelector('.item-variant');
+        [qtyInput, priceInput, gstInput, discountInput, companyInput, variantInput].forEach(inp => {
             inp.addEventListener('input', () => {
                 this.calculateRowTotal(row);
                 this.calculateTotals();
@@ -289,6 +310,8 @@ const InvoiceManager = {
         rows.forEach(row => {
             const nameInput = row.querySelector('.product-search-input').value.trim();
             const productId = row.querySelector('.item-product-id').value;
+            const company = row.querySelector('.item-company').value.trim();
+            const variant = row.querySelector('.item-variant').value.trim();
             const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
             const price = parseFloat(row.querySelector('.item-price').value) || 0;
             
@@ -296,6 +319,8 @@ const InvoiceManager = {
                 items.push({
                     name: nameInput,
                     productId: productId, // could be empty if free-text item
+                    company: company,
+                    variant: variant,
                     qty: qty,
                     price: price,
                     gstPercent: parseFloat(row.querySelector('.item-gst').value) || 0,
@@ -394,6 +419,8 @@ const InvoiceManager = {
             const rowData = {
                 name: item.name,
                 productId: item.productId,
+                company: item.company || '',
+                variant: item.variant || '',
                 qty: item.qty,
                 price: item.price,
                 gstPercent: item.gstPercent,
@@ -429,9 +456,10 @@ const InvoiceManager = {
         // Populate the print-only header with profile details
         const header = document.getElementById('print-header');
         const p = window.ProfileManager.profileData;
+        const shape = p.logoShape || 'banner';
         
         header.innerHTML = `
-            ${p.logo ? `<img src="${p.logo}" alt="Logo">` : ''}
+            ${p.logo ? `<img src="${p.logo}" class="logo-shape-${shape}" alt="Logo">` : ''}
             <h1>${this.escapeHTML(p.name)}</h1>
             <p>${this.escapeHTML(p.address).replace(/\n/g, '<br>')}</p>
             ${p.phone ? `<p>Phone: ${this.escapeHTML(p.phone)}</p>` : ''}

@@ -146,7 +146,7 @@ h1, h2, h3, h4, h5, h6 {
 .main-content {
     flex-grow: 1;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 1.25rem;
     background-color: var(--bg-color);
 }
 
@@ -179,14 +179,14 @@ h1, h2, h3, h4, h5, h6 {
     background-color: var(--surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 /* Forms */
 .form-group {
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .form-group label {
@@ -303,7 +303,7 @@ body.theme-dark .btn-outline:hover {
 
 .data-table th, .items-table th {
     text-align: left;
-    padding: 1rem;
+    padding: 0.75rem;
     background-color: rgba(0,0,0,0.02);
     border-bottom: 2px solid var(--border-color);
     color: var(--text-muted);
@@ -316,21 +316,21 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
 }
 
 .data-table td, .items-table td {
-    padding: 1rem;
+    padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
 }
 
 /* Invoice Specific */
 .invoice-totals {
-    margin-top: 2rem;
-    padding-top: 1rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
     border-top: 1px solid var(--border-color);
 }
 
 .totals-summary {
     background-color: rgba(0,0,0,0.02);
-    padding: 1.5rem;
+    padding: 1rem;
     border-radius: var(--radius);
 }
 
@@ -485,20 +485,18 @@ body.theme-dark .totals-summary {
 
     .invoice-header-print {
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
         border-bottom: 2px solid black;
-        padding-bottom: 1rem;
+        padding-bottom: 0.5rem;
     }
 
     .invoice-header-print img {
-        max-width: 100px;
-        max-height: 100px;
         margin-bottom: 10px;
     }
 
     .invoice-header-print h1 {
         margin: 0;
-        font-size: 24px;
+        font-size: 22px;
         color: black !important;
     }
     .invoice-header-print p {
@@ -509,7 +507,7 @@ body.theme-dark .totals-summary {
     .invoice-meta-print {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
     }
 
     .customer-section h3, .items-section h3 {
@@ -543,4 +541,27 @@ body.theme-dark .totals-summary {
         appearance: none;
     }
     input::placeholder, textarea::placeholder { color: transparent !important; }
+}
+
+/* Logo Shapes */
+.logo-shape-banner {
+    max-width: 250px;
+    height: auto;
+    max-height: 80px;
+    border-radius: 4px;
+    object-fit: contain;
+}
+.logo-shape-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color);
+}
+.logo-shape-square {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid var(--border-color);
 }

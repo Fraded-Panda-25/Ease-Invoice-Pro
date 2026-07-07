@@ -95,12 +95,14 @@
                                 <table class="items-table" id="invoice-items-table">
                                     <thead>
                                         <tr>
-                                            <th style="min-width: 250px;">Item/Product</th>
-                                            <th width="10%">Qty</th>
-                                            <th width="15%">Price</th>
-                                            <th width="10%">GST %</th>
-                                            <th width="15%">Discount</th>
-                                            <th width="15%">Total</th>
+                                            <th style="min-width: 200px;">Item/Product</th>
+                                            <th width="15%">Company</th>
+                                            <th width="15%">Variant</th>
+                                            <th width="8%">Qty</th>
+                                            <th width="12%">Price</th>
+                                            <th width="8%">GST %</th>
+                                            <th width="12%">Discount</th>
+                                            <th width="12%">Total</th>
                                             <th width="5%" class="no-print"></th>
                                         </tr>
                                     </thead>
@@ -154,6 +156,9 @@
                     <!-- Invoice History List -->
                     <div id="invoice-history" class="no-print">
                         <h3 class="section-title">Recent Invoices</h3>
+                        <div class="search-bar" style="margin-bottom: 1rem;">
+                            <input type="text" id="search-history" placeholder="Search by customer name or invoice number..." class="form-control">
+                        </div>
                         <div class="table-responsive">
                             <table class="data-table" id="history-table">
                                 <thead>
@@ -278,13 +283,21 @@
                                 <label>Invoice Prefix (e.g. INV-)</label>
                                 <input type="text" id="biz-prefix" value="INV-">
                             </div>
-                            <div class="form-group">
-                                <label>Business Logo</label>
-                                <input type="file" id="biz-logo" accept="image/*">
-                                <div id="logo-preview-container" style="margin-top: 10px;">
-                                    <img id="logo-preview" style="max-width: 150px; display:none;" />
-                                </div>
-                            </div>
+                             <div class="form-group">
+                                 <label>Business Logo</label>
+                                 <input type="file" id="biz-logo" accept="image/*">
+                                 <div id="logo-preview-container" style="margin-top: 10px;">
+                                     <img id="logo-preview" style="display:none;" />
+                                 </div>
+                             </div>
+                             <div class="form-group">
+                                 <label>Logo Shape / Style</label>
+                                 <select id="biz-logo-shape" class="form-control">
+                                     <option value="banner">Horizontal Banner (Best for wide images)</option>
+                                     <option value="circle">Circular Icon (Best for square logos)</option>
+                                     <option value="square">Square / Rounded Box</option>
+                                 </select>
+                             </div>
                             <button type="submit" class="btn btn-primary">Save Profile</button>
                         </form>
                     </div>

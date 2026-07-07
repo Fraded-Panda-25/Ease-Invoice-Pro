@@ -8,7 +8,8 @@ const ProfileManager = {
         gstin: '',
         phone: '',
         prefix: 'INV-',
-        logo: ''
+        logo: '',
+        logoShape: 'banner'
     },
 
     async init() {
@@ -36,9 +37,12 @@ const ProfileManager = {
         document.getElementById('biz-phone').value = this.profileData.phone || '';
         document.getElementById('biz-prefix').value = this.profileData.prefix || 'INV-';
         
+        document.getElementById('biz-logo-shape').value = this.profileData.logoShape || 'banner';
+        
         if (this.profileData.logo) {
             const preview = document.getElementById('logo-preview');
             preview.src = this.profileData.logo;
+            preview.className = 'logo-shape-' + (this.profileData.logoShape || 'banner');
             preview.style.display = 'block';
         }
     },
@@ -52,6 +56,7 @@ const ProfileManager = {
         }
         if (this.profileData.logo) {
             navLogo.src = this.profileData.logo;
+            navLogo.className = 'nav-logo-img logo-shape-' + (this.profileData.logoShape || 'banner');
             navLogo.style.display = 'block';
         }
     },
@@ -72,10 +77,20 @@ const ProfileManager = {
                     this.profileData.logo = base64;
                     const preview = document.getElementById('logo-preview');
                     preview.src = base64;
+                    preview.className = 'logo-shape-' + (this.profileData.logoShape || 'banner');
                     preview.style.display = 'block';
                 } catch (err) {
                     Utils.showToast("Failed to process image", "error");
                 }
+            }
+        });
+
+        const shapeInput = document.getElementById('biz-logo-shape');
+        shapeInput.addEventListener('change', (e) => {
+            this.profileData.logoShape = e.target.value;
+            const preview = document.getElementById('logo-preview');
+            if (preview && preview.style.display !== 'none') {
+                preview.className = 'logo-shape-' + e.target.value;
             }
         });
 
@@ -145,6 +160,7 @@ const ProfileManager = {
         this.profileData.gstin = document.getElementById('biz-gstin').value;
         this.profileData.phone = document.getElementById('biz-phone').value;
         this.profileData.prefix = document.getElementById('biz-prefix').value;
+        this.profileData.logoShape = document.getElementById('biz-logo-shape').value;
         // Logo is handled via change event
 
         try {
