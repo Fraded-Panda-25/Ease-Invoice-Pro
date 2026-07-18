@@ -143,7 +143,7 @@ const InvoiceManager = {
             <td><input type="number" class="form-control item-qty" value="1" min="1"></td>
             <td><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
             <td><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
-            <td><input type="number" class="form-control item-discount" value="0" step="0.01"></td>
+            <td><input type="number" class="form-control item-discount" value="0" step="0.01" readonly tabindex="-1"></td>
             <td class="item-total">₹0.00</td>
             <td class="no-print">
                 <button class="btn btn-danger btn-sm" onclick="InvoiceManager.removeLineItem('${rowId}')">✕</button>
@@ -238,6 +238,7 @@ const InvoiceManager = {
                             <div class="ac-row-sub">
                                 <span>₹${p.unitPrice}</span>
                                 <span>GST ${p.gstPercent || 0}%</span>
+                                <span>Disc ₹${p.defaultDiscount || 0}</span>
                                 ${stockLabel}
                             </div>
                         `;
@@ -249,7 +250,7 @@ const InvoiceManager = {
                             row.querySelector('.item-variant').value = p.sizeUnit || '';
                             priceInput.value = p.unitPrice;
                             gstInput.value = p.gstPercent || 0;
-                            // Discount stays at 0 (user can edit)
+                            discountInput.value = p.defaultDiscount || 0;
                             dropdown.style.display = 'none';
                             this.calculateRowTotal(row);
                             this.calculateTotals();
@@ -280,17 +281,16 @@ const InvoiceManager = {
                 row.querySelector('.item-variant').value = '';
                 priceInput.value = 0;
                 gstInput.value = 0;
+                discountInput.value = 0;
                 this.calculateRowTotal(row);
                 this.calculateTotals();
             }
         });
 
-        // Recalculate on qty/discount change (these are the only user-editable numeric fields)
-        [qtyInput, discountInput].forEach(inp => {
-            inp.addEventListener('input', () => {
-                this.calculateRowTotal(row);
-                this.calculateTotals();
-            });
+        // Recalculate on qty change
+        qtyInput.addEventListener('input', () => {
+            this.calculateRowTotal(row);
+            this.calculateTotals();
         });
     },
 
@@ -384,10 +384,14 @@ const InvoiceManager = {
         // Generate Invoice Number if empty
         let invNumber = document.getElementById('inv-number').value.trim();
         if (!invNumber) {
-            // Get count for today for simple sequence
-            const todayPrefix = window.ProfileManager.profileData.prefix + new Date().toISOString().split('T')[0].replace(/-/g, '') + '-';
-            const todays = this.invoices.filter(i => i.number.startsWith(todayPrefix)).length;
-            invNumber = todayPrefix + String(todays + 1).padStart(3, '0');
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+            const prefix = `NPHP-${dateStr}-`;
+            const todays = this.invoices.filter(i => i.number.startsWith(prefix)).length;
+            invNumber = prefix + String(todays + 1).padStart(3, '0');
         }
 
         // Collect Totals

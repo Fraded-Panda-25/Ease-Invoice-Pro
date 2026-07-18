@@ -94,6 +94,7 @@ const InventoryManager = {
             sizeUnit: document.getElementById('prod-variant').value,
             unitPrice: parseFloat(document.getElementById('prod-price').value) || 0,
             gstPercent: parseFloat(document.getElementById('prod-gst').value) || 0,
+            defaultDiscount: parseFloat(document.getElementById('prod-discount').value) || 0,
             stockQty: parseInt(document.getElementById('prod-stock').value) || 0,
             lowStockThreshold: parseInt(document.getElementById('prod-threshold').value) || 0
         };
@@ -120,6 +121,7 @@ const InventoryManager = {
                 document.getElementById('prod-variant').value = prod.sizeUnit;
                 document.getElementById('prod-price').value = prod.unitPrice;
                 document.getElementById('prod-gst').value = prod.gstPercent || 0;
+                document.getElementById('prod-discount').value = prod.defaultDiscount || 0;
                 document.getElementById('prod-stock').value = prod.stockQty;
                 document.getElementById('prod-threshold').value = prod.lowStockThreshold;
 
