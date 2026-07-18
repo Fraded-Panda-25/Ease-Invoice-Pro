@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Setup Theme Toggling
         setupThemeToggle();
+        
+        // Setup Sidebar Toggle
+        setupSidebarToggle();
 
     } catch (e) {
         console.error("Initialization failed:", e);
@@ -100,3 +103,42 @@ function setupThemeToggle() {
         }
     }
 }
+
+function setupSidebarToggle() {
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const appContainer = document.getElementById('app-container');
+    const overlay = document.getElementById('sidebar-overlay');
+    const navLinks = document.querySelectorAll('.nav-link');
+
+    if (!toggleBtn || !appContainer) return;
+
+    // Set initial sidebar state based on viewport width
+    if (window.innerWidth <= 768) {
+        appContainer.classList.remove('sidebar-visible');
+    } else {
+        appContainer.classList.add('sidebar-visible');
+    }
+
+    const toggleSidebar = () => {
+        appContainer.classList.toggle('sidebar-visible');
+    };
+
+    const closeSidebar = () => {
+        appContainer.classList.remove('sidebar-visible');
+    };
+
+    toggleBtn.addEventListener('click', toggleSidebar);
+    if (overlay) {
+        overlay.addEventListener('click', closeSidebar);
+    }
+
+    // Auto-dismiss sidebar on navigation click on mobile/tablets
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
+        });
+    });
+}
+
