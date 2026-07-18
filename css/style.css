@@ -295,7 +295,81 @@ body.theme-dark .btn-outline:hover {
 /* Tables */
 .table-responsive {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
+
+/* Mobile card layout for invoice items table */
+@media (max-width: 768px) {
+    /* Hide the normal thead on mobile */
+    #invoice-items-table thead {
+        display: none;
+    }
+
+    /* Each row becomes a card block */
+    #invoice-items-table tbody tr {
+        display: block;
+        background-color: var(--surface);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        margin-bottom: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+    /* Each cell becomes a flex row: label on left, input on right */
+    #invoice-items-table tbody td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.4rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.875rem;
+    }
+
+    #invoice-items-table tbody td:last-child {
+        border-bottom: none;
+    }
+
+    /* Label injected via data-label attribute */
+    #invoice-items-table tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        white-space: nowrap;
+        min-width: 90px;
+        flex-shrink: 0;
+    }
+
+    /* Inputs fill the remaining width */
+    #invoice-items-table tbody td input.form-control {
+        width: auto;
+        flex: 1;
+        min-width: 0;
+        padding: 0.4rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* The Total cell text aligns right */
+    #invoice-items-table tbody td.item-total {
+        font-weight: 700;
+        color: var(--primary);
+        font-size: 1rem;
+        justify-content: space-between;
+    }
+
+    /* The delete button cell - no label needed */
+    #invoice-items-table tbody td.no-print::before {
+        content: '';
+        min-width: 0;
+    }
+    #invoice-items-table tbody td.no-print {
+        justify-content: flex-end;
+        border-bottom: none;
+    }
+}
+
 
 .data-table, .items-table {
     width: 100%;
@@ -361,6 +435,18 @@ body.theme-dark .totals-summary {
     justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
+}
+
+/* Quantity input — no spinner arrows, wider field */
+.item-qty {
+    min-width: 80px;
+    text-align: center;
+    -moz-appearance: textfield; /* Firefox */
+}
+.item-qty::-webkit-outer-spin-button,
+.item-qty::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 /* Autocomplete Dropdown */

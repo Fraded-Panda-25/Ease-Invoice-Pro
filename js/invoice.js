@@ -134,17 +134,17 @@ const InvoiceManager = {
         tr.id = rowId;
         
         tr.innerHTML = `
-            <td style="position:relative;">
+            <td data-label="Item" style="position:relative;">
                 <input type="text" class="form-control product-search-input" placeholder="Type product name..." autocomplete="off">
                 <input type="hidden" class="item-product-id">
             </td>
-            <td><input type="text" class="form-control item-company" placeholder="—" readonly tabindex="-1"></td>
-            <td><input type="text" class="form-control item-variant" placeholder="—" readonly tabindex="-1"></td>
-            <td><input type="number" class="form-control item-qty" value="1" min="1"></td>
-            <td><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
-            <td><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
-            <td><input type="number" class="form-control item-discount" value="0" step="0.01" readonly tabindex="-1"></td>
-            <td class="item-total">₹0.00</td>
+            <td data-label="Company"><input type="text" class="form-control item-company" placeholder="—" readonly tabindex="-1"></td>
+            <td data-label="Variant"><input type="text" class="form-control item-variant" placeholder="—" readonly tabindex="-1"></td>
+            <td data-label="Qty"><input type="number" class="form-control item-qty" value="1" min="1"></td>
+            <td data-label="Price (₹)"><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
+            <td data-label="GST %"><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
+            <td data-label="Discount (₹)"><input type="number" class="form-control item-discount" value="0" step="0.01" readonly tabindex="-1"></td>
+            <td data-label="Total" class="item-total">₹0.00</td>
             <td class="no-print">
                 <button class="btn btn-danger btn-sm" onclick="InvoiceManager.removeLineItem('${rowId}')">✕</button>
             </td>
