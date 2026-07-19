@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Setup Sidebar Toggle
         setupSidebarToggle();
 
+        // Setup Sidebar Resizer
+        setupSidebarResizer();
+
     } catch (e) {
         console.error("Initialization failed:", e);
         Utils.showToast("Failed to initialize app database.", "error");
@@ -142,3 +145,61 @@ function setupSidebarToggle() {
     });
 }
 
+function setupSidebarResizer() {
+    const resizer = document.getElementById('sidebar-resizer');
+    const sidebar = document.querySelector('.sidebar');
+    if (!resizer || !sidebar) return;
+
+    const MIN_WIDTH = 180;
+    const MAX_WIDTH = 420;
+    const STORAGE_KEY = 'sidebarWidth';
+
+    // Restore saved width on load
+    const savedWidth = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+    if (savedWidth && savedWidth >= MIN_WIDTH && savedWidth <= MAX_WIDTH) {
+        document.documentElement.style.setProperty('--sidebar-width', savedWidth + 'px');
+    }
+
+    let startX = 0;
+    let startWidth = 0;
+    let isDragging = false;
+
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+        const delta = e.clientX - startX;
+        const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+        document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+    };
+
+    const onMouseUp = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        resizer.classList.remove('is-resizing');
+        document.body.classList.remove('sidebar-resizing');
+
+        // Save the current width to localStorage
+        const currentWidth = sidebar.getBoundingClientRect().width;
+        if (currentWidth >= MIN_WIDTH && currentWidth <= MAX_WIDTH) {
+            localStorage.setItem(STORAGE_KEY, Math.round(currentWidth));
+        }
+
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    resizer.addEventListener('mousedown', (e) => {
+        // Only allow resize on desktop (not on mobile overlay)
+        if (window.innerWidth <= 768) return;
+
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = sidebar.getBoundingClientRect().width;
+
+        resizer.classList.add('is-resizing');
+        document.body.classList.add('sidebar-resizing');
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+}
