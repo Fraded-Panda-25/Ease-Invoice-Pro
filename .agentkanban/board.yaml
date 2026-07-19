@@ -2,3 +2,7 @@ lanes:
   - todo
   - doing
   - done
+users:
+  - Pritam Paul
+labels:
+  - fast
