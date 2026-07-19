@@ -1,8 +1,8 @@
 ---
 title: Auto suggetion
-lane: doing
+lane: done
 created: 2026-07-18T10:53:28.407Z
-updated: 2026-07-19T07:52:24.921Z
+updated: 2026-07-19T09:21:56.848Z
 description: We need to add auto suggetion on Invoice builder.
 priority: medium
 assignee: Pritam Paul
