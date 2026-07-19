@@ -171,6 +171,7 @@
                         <th width="15%">Company</th>
                         <th width="15%">Variant</th>
                         <th width="8%">Qty</th>
+                        <th width="10%">Stock</th>
                         <th width="12%">Price</th>
                         <th width="8%">GST %</th>
                         <th width="12%">Discount</th>
@@ -238,6 +239,26 @@
                 <button class="btn btn-primary" id="btn-save-invoice">
                   Save & Finalize
                 </button>
+              </div>
+            </div>
+
+            <!-- Dashboard Stats Cards -->
+            <div id="dashboard-stats" class="stats-grid no-print">
+              <div class="stat-card">
+                <span class="stat-label">Products</span>
+                <span class="stat-value" id="stat-products">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Sold This Month</span>
+                <span class="stat-value" id="stat-sold">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Restocked This Month</span>
+                <span class="stat-value" id="stat-restocked">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Low Stock Items</span>
+                <span class="stat-value" id="stat-low-stock">—</span>
               </div>
             </div>
 
@@ -349,13 +370,15 @@
               </form>
             </div>
 
-            <div class="search-bar" style="margin-bottom: 1rem">
+            <div class="search-bar" style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center;">
               <input
                 type="text"
                 id="search-inventory"
                 placeholder="Search by name, company, variant..."
                 class="form-control"
+                style="flex: 1;"
               />
+              <button class="btn btn-outline btn-sm" onclick="InventoryManager.showAllHistory()">📋 Full History</button>
             </div>
 
             <div class="table-responsive">
@@ -367,6 +390,7 @@
                     <th>Variant</th>
                     <th>Price</th>
                     <th>Stock</th>
+                    <th>Last Sold</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -496,12 +520,60 @@
                   <button class="btn btn-danger" id="btn-clear-data">
                     Reset All Data
                   </button>
+                  <button
+                    class="btn btn-outline"
+                    id="btn-clear-stock-history"
+                    style="margin-top: 0.5rem"
+                  >
+                    Delete Stock History Log
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </section>
       </main>
+    </div>
+
+    <!-- Stock History Modal -->
+    <div id="stock-history-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Stock History</h3>
+          <button class="btn btn-sm btn-outline modal-close-btn" onclick="document.getElementById('stock-history-modal').style.display='none'">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Filter bar: date range + type -->
+          <div class="history-filter-bar">
+            <div class="filter-group">
+              <label for="filter-history-from">From</label>
+              <input type="date" id="filter-history-from" class="form-control filter-date">
+            </div>
+            <div class="filter-group">
+              <label for="filter-history-to">To</label>
+              <input type="date" id="filter-history-to" class="form-control filter-date">
+            </div>
+            <div class="filter-group">
+              <label for="filter-history-type">Type</label>
+              <select id="filter-history-type" class="form-control filter-type">
+                <option value="">All Types</option>
+                <option value="sale">Sales</option>
+                <option value="restock">Restocks</option>
+                <option value="restore">Restores</option>
+              </select>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-clear-history-filter" style="align-self:flex-end;">Clear</button>
+            <button class="btn btn-outline btn-sm" id="btn-export-history-csv" style="align-self:flex-end;">📥 CSV</button>
+          </div>
+          <!-- History table populated dynamically -->
+          <div id="stock-history-content">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="document.getElementById('stock-history-modal').style.display='none'">Close</button>
+        </div>
+      </div>
     </div>
 
     <!-- Autocomplete Dropdown Container -->
@@ -512,6 +584,7 @@
 
     <script src="js/utils.js"></script>
     <script src="js/db.js"></script>
+    <script src="js/stockHistory.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/invoice.js"></script>
     <script src="js/profile.js"></script>

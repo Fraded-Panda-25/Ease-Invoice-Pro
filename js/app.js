@@ -60,6 +60,7 @@ function setupNavigation() {
                     window.InventoryManager.loadInventory();
                 } else if (targetId === 'view-dashboard' && window.InvoiceManager) {
                     window.InvoiceManager.loadHistory();
+                    window.InvoiceManager.renderDashboardStats();
                 }
             }
             

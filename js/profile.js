@@ -144,11 +144,23 @@ const ProfileManager = {
                         await window.appDB.clear('profile');
                         await window.appDB.clear('products');
                         await window.appDB.clear('invoices');
+                        await window.appDB.clear('stockHistory');
                         Utils.showToast("All data cleared. Reloading...");
                         setTimeout(() => window.location.reload(), 1500);
                     } catch (e) {
                         Utils.showToast("Failed to clear data", "error");
                     }
+                }
+            }
+        });
+
+        document.getElementById('btn-clear-stock-history').addEventListener('click', async () => {
+            if (confirm("Delete all stock history entries? This cannot be undone.")) {
+                try {
+                    await window.appDB.clear('stockHistory');
+                    Utils.showToast("Stock history cleared.", "success");
+                } catch (e) {
+                    Utils.showToast("Failed to clear stock history", "error");
                 }
             }
         });
