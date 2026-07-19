@@ -602,7 +602,7 @@ body.theme-dark .items-table input[readonly] {
 /* Toasts */
 .toast-container {
     position: fixed;
-    bottom: 20px;
+    top: 20px;
     right: 20px;
     z-index: 9999;
     display: flex;
@@ -617,14 +617,15 @@ body.theme-dark .items-table input[readonly] {
     border-radius: var(--radius);
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     border-left: 4px solid var(--primary);
-    animation: slideInRight 0.3s ease forwards, fadeOut 0.3s ease 2.7s forwards;
+    animation: slideInTop 0.3s ease forwards, fadeOut 0.3s ease 2.7s forwards;
 }
 .toast.success { border-left-color: var(--secondary); }
 .toast.error { border-left-color: var(--danger); }
+.toast.warning { border-left-color: var(--warning); }
 
-@keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+@keyframes slideInTop {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes fadeOut {

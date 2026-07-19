@@ -416,18 +416,32 @@ const InvoiceManager = {
             // Save Invoice
             await window.appDB.put('invoices', invoiceRecord);
             
-            // Deduct Stock for linked products
+            // Deduct Stock for linked products & check low stock
+            const lowStockItems = [];
             for (const item of items) {
                 if (item.productId) {
                     const product = await window.appDB.get('products', item.productId);
                     if (product) {
                         product.stockQty -= item.qty;
                         await window.appDB.put('products', product);
+                        // Check if stock is now at or below threshold
+                        if (product.stockQty <= 0) {
+                            lowStockItems.push(product.name);
+                        }
                     }
                 }
             }
 
             Utils.showToast("Invoice Saved & Stock Updated!", "success");
+
+            // Show low stock warnings after the success toast
+            if (lowStockItems.length > 0) {
+                setTimeout(() => {
+                    lowStockItems.forEach(name => {
+                        Utils.showToast(`Low Stock: "${name}" is now out of stock!`, "warning");
+                    });
+                }, 500);
+            }
             
             // Re-render inventory if it's cached/loaded
             if (window.InventoryManager) {
