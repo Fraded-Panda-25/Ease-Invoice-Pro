@@ -1,0 +1,485 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "app.js",
+      "file_type": "code",
+      "source_file": "js/app.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "js_app",
+      "community": 1,
+      "norm_label": "app.js"
+    },
+    {
+      "label": "setupNavigation()",
+      "file_type": "code",
+      "source_file": "js/app.js",
+      "source_location": "L32",
+      "_origin": "ast",
+      "id": "js_app_setupnavigation",
+      "community": 1,
+      "norm_label": "setupnavigation()"
+    },
+    {
+      "label": "setupThemeToggle()",
+      "file_type": "code",
+      "source_file": "js/app.js",
+      "source_location": "L79",
+      "_origin": "ast",
+      "id": "js_app_setupthemetoggle",
+      "community": 1,
+      "norm_label": "setupthemetoggle()"
+    },
+    {
+      "label": "setupSidebarToggle()",
+      "file_type": "code",
+      "source_file": "js/app.js",
+      "source_location": "L110",
+      "_origin": "ast",
+      "id": "js_app_setupsidebartoggle",
+      "community": 1,
+      "norm_label": "setupsidebartoggle()"
+    },
+    {
+      "label": "setupSidebarResizer()",
+      "file_type": "code",
+      "source_file": "js/app.js",
+      "source_location": "L148",
+      "_origin": "ast",
+      "id": "js_app_setupsidebarresizer",
+      "community": 1,
+      "norm_label": "setupsidebarresizer()"
+    },
+    {
+      "label": "db.js",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "js_db",
+      "community": 0,
+      "norm_label": "db.js"
+    },
+    {
+      "label": "Database",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L6",
+      "_origin": "ast",
+      "id": "js_db_database",
+      "community": 0,
+      "norm_label": "database"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "js_db_database_constructor",
+      "community": 0,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": ".init()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L11",
+      "_origin": "ast",
+      "id": "js_db_database_init",
+      "community": 0,
+      "norm_label": ".init()"
+    },
+    {
+      "label": ".put()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L51",
+      "_origin": "ast",
+      "id": "js_db_database_put",
+      "community": 2,
+      "norm_label": ".put()"
+    },
+    {
+      "label": ".get()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L63",
+      "_origin": "ast",
+      "id": "js_db_database_get",
+      "community": 0,
+      "norm_label": ".get()"
+    },
+    {
+      "label": ".getAll()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L75",
+      "_origin": "ast",
+      "id": "js_db_database_getall",
+      "community": 0,
+      "norm_label": ".getall()"
+    },
+    {
+      "label": ".delete()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L87",
+      "_origin": "ast",
+      "id": "js_db_database_delete",
+      "community": 0,
+      "norm_label": ".delete()"
+    },
+    {
+      "label": ".clear()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L99",
+      "_origin": "ast",
+      "id": "js_db_database_clear",
+      "community": 2,
+      "norm_label": ".clear()"
+    },
+    {
+      "label": ".exportData()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L111",
+      "_origin": "ast",
+      "id": "js_db_database_exportdata",
+      "community": 0,
+      "norm_label": ".exportdata()"
+    },
+    {
+      "label": ".importData()",
+      "file_type": "code",
+      "source_file": "js/db.js",
+      "source_location": "L121",
+      "_origin": "ast",
+      "id": "js_db_database_importdata",
+      "community": 2,
+      "norm_label": ".importdata()"
+    },
+    {
+      "label": "inventory.js",
+      "file_type": "code",
+      "source_file": "js/inventory.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "js_inventory",
+      "community": 3,
+      "norm_label": "inventory.js"
+    },
+    {
+      "label": "InventoryManager",
+      "file_type": "code",
+      "source_file": "js/inventory.js",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "js_inventory_inventorymanager",
+      "community": 3,
+      "norm_label": "inventorymanager"
+    },
+    {
+      "label": "invoice.js",
+      "file_type": "code",
+      "source_file": "js/invoice.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "js_invoice",
+      "community": 4,
+      "norm_label": "invoice.js"
+    },
+    {
+      "label": "InvoiceManager",
+      "file_type": "code",
+      "source_file": "js/invoice.js",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "js_invoice_invoicemanager",
+      "community": 4,
+      "norm_label": "invoicemanager"
+    },
+    {
+      "label": "profile.js",
+      "file_type": "code",
+      "source_file": "js/profile.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "js_profile",
+      "community": 5,
+      "norm_label": "profile.js"
+    },
+    {
+      "label": "ProfileManager",
+      "file_type": "code",
+      "source_file": "js/profile.js",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "js_profile_profilemanager",
+      "community": 5,
+      "norm_label": "profilemanager"
+    },
+    {
+      "label": "utils.js",
+      "file_type": "code",
+      "source_file": "js/utils.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "js_utils",
+      "community": 6,
+      "norm_label": "utils.js"
+    },
+    {
+      "label": "Utils",
+      "file_type": "code",
+      "source_file": "js/utils.js",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "js_utils_utils",
+      "community": 6,
+      "norm_label": "utils"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/app.js",
+      "source_location": "L32",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_app",
+      "target": "js_app_setupnavigation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/app.js",
+      "source_location": "L148",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_app",
+      "target": "js_app_setupsidebarresizer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/app.js",
+      "source_location": "L110",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_app",
+      "target": "js_app_setupsidebartoggle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/app.js",
+      "source_location": "L79",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_app",
+      "target": "js_app_setupthemetoggle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db",
+      "target": "js_db_database",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L99",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_clear",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_constructor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L87",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_delete",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L111",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_exportdata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L63",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L75",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_getall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L121",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_importdata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L51",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database",
+      "target": "js_db_database_put",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L127",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database_importdata",
+      "target": "js_db_database_put",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L113",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database_exportdata",
+      "target": "js_db_database_getall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "js/db.js",
+      "source_location": "L126",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_db_database_importdata",
+      "target": "js_db_database_clear",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/inventory.js",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_inventory",
+      "target": "js_inventory_inventorymanager",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/invoice.js",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_invoice",
+      "target": "js_invoice_invoicemanager",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/profile.js",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_profile",
+      "target": "js_profile_profilemanager",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "js/utils.js",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "js_utils",
+      "target": "js_utils_utils",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "6bd273fa4f773cd85ede13c2dabd02317134c3a9"
+}

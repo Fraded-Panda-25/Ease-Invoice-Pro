@@ -1,0 +1,82 @@
+{
+  ".vscode/settings.json": {
+    "mtime": 1784447154.9663045,
+    "ast_hash": "e3f857d1859b32089647c9d30473b5ba",
+    "semantic_hash": "e3f857d1859b32089647c9d30473b5ba"
+  },
+  "js/app.js": {
+    "mtime": 1784446462.9343367,
+    "ast_hash": "f2c4ee28bdcfd64661dac134bda14b22",
+    "semantic_hash": "f2c4ee28bdcfd64661dac134bda14b22"
+  },
+  "js/db.js": {
+    "mtime": 1783414856.6762176,
+    "ast_hash": "2b8754f44f3ab45d5e6c79bc34ed08a1",
+    "semantic_hash": "2b8754f44f3ab45d5e6c79bc34ed08a1"
+  },
+  "js/inventory.js": {
+    "mtime": 1784372275.5790832,
+    "ast_hash": "bbae66d3694e0484b66b17c121facfc0",
+    "semantic_hash": "bbae66d3694e0484b66b17c121facfc0"
+  },
+  "js/invoice.js": {
+    "mtime": 1784372658.4480379,
+    "ast_hash": "5d3de89eeff9565b1835b0d78d2c68ca",
+    "semantic_hash": "5d3de89eeff9565b1835b0d78d2c68ca"
+  },
+  "js/profile.js": {
+    "mtime": 1783418316.261908,
+    "ast_hash": "ac3dd48b54ca15dd5f160cbf02dd1bb9",
+    "semantic_hash": "ac3dd48b54ca15dd5f160cbf02dd1bb9"
+  },
+  "js/utils.js": {
+    "mtime": 1783414868.4353633,
+    "ast_hash": "41c937e13eba17ced13457db127b9496",
+    "semantic_hash": "41c937e13eba17ced13457db127b9496"
+  },
+  ".agentkanban/INSTRUCTION.md": {
+    "mtime": 1784452258.3425083,
+    "ast_hash": "d55297473178093b185bbfaaeed7b7c7",
+    "semantic_hash": "d55297473178093b185bbfaaeed7b7c7"
+  },
+  ".agentkanban/board.yaml": {
+    "mtime": 1784447549.3964047,
+    "ast_hash": "c30a5c0b351ef89425630cb86c6593f3",
+    "semantic_hash": "c30a5c0b351ef89425630cb86c6593f3"
+  },
+  ".agentkanban/tasks/task_20260718_d298te_fix_print.md": {
+    "mtime": 1784452667.2678401,
+    "ast_hash": "3273e8e739b9bb27eb8c2d3c23c0b58c",
+    "semantic_hash": "3273e8e739b9bb27eb8c2d3c23c0b58c"
+  },
+  ".agentkanban/tasks/task_20260718_ow6vrj_auto_suggetion.md": {
+    "mtime": 1784452916.8521047,
+    "ast_hash": "6d1d47502f3aef2aef9e491f8d1ef1ff",
+    "semantic_hash": "6d1d47502f3aef2aef9e491f8d1ef1ff"
+  },
+  ".agentkanban/tasks/task_20260719_0lnqcw_low_stock_notification.md": {
+    "mtime": 1784447528.1480408,
+    "ast_hash": "5d2251963160c7d288ba9334a6f91be9",
+    "semantic_hash": "5d2251963160c7d288ba9334a6f91be9"
+  },
+  ".agentkanban/tasks/task_20260719_e45bu6_sidebar_movement.md": {
+    "mtime": 1784453168.4399772,
+    "ast_hash": "84daa1e01650bef26fb1e72760c825db",
+    "semantic_hash": "84daa1e01650bef26fb1e72760c825db"
+  },
+  "AGENTS.md": {
+    "mtime": 1784452258.3973098,
+    "ast_hash": "a5d3693f5de5b51ad14a8f8b7cb0d600",
+    "semantic_hash": "a5d3693f5de5b51ad14a8f8b7cb0d600"
+  },
+  "README.md": {
+    "mtime": 1783417831.2596905,
+    "ast_hash": "ba9c047f5d64b6f35732542099ad5b37",
+    "semantic_hash": "ba9c047f5d64b6f35732542099ad5b37"
+  },
+  "index.html": {
+    "mtime": 1784446404.8870442,
+    "ast_hash": "235eadf9c9fb24bd000c89f10e0ac6f1",
+    "semantic_hash": "235eadf9c9fb24bd000c89f10e0ac6f1"
+  }
+}
