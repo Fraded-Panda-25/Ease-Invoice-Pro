@@ -60,12 +60,22 @@ function setupNavigation() {
                     window.InventoryManager.loadInventory();
                 } else if (targetId === 'view-dashboard' && window.InvoiceManager) {
                     window.InvoiceManager.loadHistory();
+                    window.InvoiceManager.renderDashboardStats();
                 }
             }
             
             // Update URL hash without jumping
             history.pushState(null, null, link.getAttribute('href'));
         });
+    });
+
+    // Handle hash-based navigation (browser back/forward, or URL changes)
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash;
+        if (hash) {
+            const link = document.querySelector(`.nav-link[href="${hash}"]`);
+            if (link) link.click();
+        }
     });
 
     // Handle initial route based on hash

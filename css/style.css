@@ -348,6 +348,32 @@ body.theme-dark .btn-outline:hover {
     -webkit-overflow-scrolling: touch;
 }
 
+/* Stock warning text animation */
+@keyframes stockWarningIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.stock-warning {
+    animation: stockWarningIn 0.25s ease-out;
+}
+
+/* Invoice row stock warning highlight */
+#invoice-items-table tbody tr {
+    transition: background-color 0.25s ease;
+}
+#invoice-items-table tbody tr.row-stock-warning {
+    background-color: rgba(239, 68, 68, 0.06);
+}
+body.theme-dark #invoice-items-table tbody tr.row-stock-warning {
+    background-color: rgba(248, 113, 113, 0.08);
+}
+
 /* Mobile card layout for invoice items table */
 @media (max-width: 768px) {
     /* Hide the normal thead on mobile */
@@ -445,6 +471,45 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+}
+
+/* Dashboard Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px -2px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card .stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-main);
 }
 
 /* Invoice Specific */
@@ -602,7 +667,7 @@ body.theme-dark .items-table input[readonly] {
 /* Toasts */
 .toast-container {
     position: fixed;
-    bottom: 20px;
+    top: 20px;
     right: 20px;
     z-index: 9999;
     display: flex;
@@ -617,14 +682,15 @@ body.theme-dark .items-table input[readonly] {
     border-radius: var(--radius);
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     border-left: 4px solid var(--primary);
-    animation: slideInRight 0.3s ease forwards, fadeOut 0.3s ease 2.7s forwards;
+    animation: slideInTop 0.3s ease forwards, fadeOut 0.3s ease 2.7s forwards;
 }
 .toast.success { border-left-color: var(--secondary); }
 .toast.error { border-left-color: var(--danger); }
+.toast.warning { border-left-color: var(--warning); }
 
-@keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+@keyframes slideInTop {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes fadeOut {
@@ -819,7 +885,271 @@ body.theme-dark .items-table input[readonly] {
     }
 }
 
-/* Mobile & Tablet Styles (max-width: 768px) */
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: fadeIn 0.25s ease;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header .modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.modal-header .modal-close-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    border-radius: 50%;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    gap: 0.5rem;
+}
+
+/* Stock history date range filter bar */
+.history-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.history-filter-bar .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.history-filter-bar .filter-group label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.history-filter-bar .filter-date {
+    width: 160px;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.history-filter-bar .filter-type {
+    width: 140px;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 480px) {
+    .history-filter-bar .filter-date {
+        width: 130px;
+    }
+    .history-filter-bar .filter-type {
+        width: 110px;
+    }
+}
+
+/* Stock trend chart */
+.stock-chart-container {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: rgba(0,0,0,0.02);
+    border-radius: var(--radius);
+}
+body.theme-dark .stock-chart-container {
+    background-color: rgba(255,255,255,0.02);
+}
+
+.stock-chart-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.stock-chart-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.chart-gridline {
+    stroke: var(--border-color);
+    stroke-width: 0.5;
+    stroke-dasharray: 3,3;
+}
+
+.chart-line {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.chart-area {
+    fill: var(--primary);
+    opacity: 0.1;
+}
+
+.chart-dot {
+    fill: var(--primary);
+    stroke: var(--surface);
+    stroke-width: 1.5;
+}
+
+.chart-bar-sold {
+    fill: var(--danger);
+    opacity: 0.8;
+}
+
+.chart-bar-restocked {
+    fill: var(--secondary);
+    opacity: 0.8;
+}
+
+.chart-y-label {
+    fill: var(--text-muted);
+    font-size: 9px;
+    text-anchor: end;
+    font-family: inherit;
+}
+
+.chart-x-label {
+    fill: var(--text-muted);
+    font-size: 8px;
+    text-anchor: middle;
+    font-family: inherit;
+}
+
+.chart-legend-text {
+    fill: var(--text-muted);
+    font-size: 9px;
+    font-family: inherit;
+}
+
+/* Stock history summary row */
+.history-summary tr {
+    font-weight: 600;
+}
+
+.history-summary--positive tr {
+    background-color: rgba(16, 185, 129, 0.08);
+}
+
+.history-summary--negative tr {
+    background-color: rgba(239, 68, 68, 0.08);
+}
+
+.history-summary:not(.history-summary--positive):not(.history-summary--negative) tr {
+    background-color: rgba(56, 189, 248, 0.06);
+}
+
+.history-summary tr td {
+    padding: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+
+.history-summary .summary-divider {
+    margin: 0 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+.history-summary .summary-sold strong {
+    color: var(--danger);
+}
+
+.history-summary .summary-restocked strong {
+    color: var(--secondary);
+}
+
+/* Stock history pagination */
+.history-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border-color);
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.history-pagination .pagination-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.history-pagination .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.history-pagination .pagination-page {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    min-width: 100px;
+    text-align: center;
+}
+
+.history-pagination .btn[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
 @media (max-width: 768px) {
     .sidebar {
         position: fixed;

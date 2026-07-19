@@ -1,7 +1,7 @@
 // db.js - IndexedDB Wrapper for Ease Invoice
 
 const DB_NAME = 'EaseInvoiceDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class Database {
     constructor() {
@@ -42,6 +42,13 @@ class Database {
                     const invoiceStore = db.createObjectStore('invoices', { keyPath: 'id' });
                     invoiceStore.createIndex('date', 'date', { unique: false });
                     invoiceStore.createIndex('number', 'number', { unique: true });
+                }
+
+                // Create Stock History Store (added in v2)
+                if (!db.objectStoreNames.contains('stockHistory')) {
+                    const historyStore = db.createObjectStore('stockHistory', { keyPath: 'id' });
+                    historyStore.createIndex('productId', 'productId', { unique: false });
+                    historyStore.createIndex('date', 'date', { unique: false });
                 }
             };
         });
@@ -112,7 +119,8 @@ class Database {
         const data = {
             profile: await this.getAll('profile'),
             products: await this.getAll('products'),
-            invoices: await this.getAll('invoices')
+            invoices: await this.getAll('invoices'),
+            stockHistory: await this.getAll('stockHistory')
         };
         return JSON.stringify(data);
     }
@@ -133,6 +141,10 @@ class Database {
             if (data.invoices) {
                 await this.clear('invoices');
                 for (let item of data.invoices) await this.put('invoices', item);
+            }
+            if (data.stockHistory) {
+                await this.clear('stockHistory');
+                for (let item of data.stockHistory) await this.put('stockHistory', item);
             }
             return true;
         } catch (e) {

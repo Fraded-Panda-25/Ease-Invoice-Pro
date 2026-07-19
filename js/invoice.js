@@ -3,10 +3,44 @@
 const InvoiceManager = {
     currentItems: [],
     invoices: [],
+    _stockToastTimers: {}, // per-row debounce timers for stock warning toasts
     
     async init() {
         this.bindEvents();
         await this.loadHistory();
+        await this.renderDashboardStats();
+    },
+
+    async renderDashboardStats() {
+        try {
+            // Products count & low stock count
+            const products = await window.appDB.getAll('products');
+            document.getElementById('stat-products').textContent = products.length;
+            const lowStockCount = products.filter(p => p.stockQty <= p.lowStockThreshold).length;
+            const lowStockEl = document.getElementById('stat-low-stock');
+            lowStockEl.textContent = lowStockCount;
+            lowStockEl.style.color = lowStockCount > 0 ? 'var(--danger)' : 'var(--secondary)';
+
+            // Monthly stock changes from history
+            if (window.StockHistoryManager) {
+                const now = new Date();
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                const history = await window.StockHistoryManager.getAllHistory();
+                const thisMonth = history.filter(e => e.date >= monthStart);
+
+                let totalSold = 0;
+                let totalRestocked = 0;
+                thisMonth.forEach(e => {
+                    if (e.change < 0) totalSold += Math.abs(e.change);
+                    else if (e.change > 0) totalRestocked += e.change;
+                });
+
+                document.getElementById('stat-sold').textContent = totalSold;
+                document.getElementById('stat-restocked').textContent = totalRestocked;
+            }
+        } catch (e) {
+            console.error('Failed to render dashboard stats:', e);
+        }
     },
 
     async loadHistory() {
@@ -55,6 +89,7 @@ const InvoiceManager = {
         document.getElementById('btn-cancel-invoice').addEventListener('click', () => {
             document.getElementById('invoice-editor').style.display = 'none';
             document.getElementById('invoice-history').style.display = 'block';
+            document.getElementById('dashboard-stats').style.display = '';
             document.getElementById('btn-new-invoice').style.display = 'inline-flex';
         });
 
@@ -123,6 +158,7 @@ const InvoiceManager = {
         // UI Toggle
         document.getElementById('invoice-editor').style.display = 'block';
         document.getElementById('invoice-history').style.display = 'none';
+        document.getElementById('dashboard-stats').style.display = 'none';
         document.getElementById('btn-new-invoice').style.display = 'none';
     },
 
@@ -141,6 +177,7 @@ const InvoiceManager = {
             <td data-label="Company"><input type="text" class="form-control item-company" placeholder="—" readonly tabindex="-1"></td>
             <td data-label="Variant"><input type="text" class="form-control item-variant" placeholder="—" readonly tabindex="-1"></td>
             <td data-label="Qty"><input type="number" class="form-control item-qty" value="1" min="1"></td>
+            <td data-label="Stock at Billing" class="item-stock-billing">—</td>
             <td data-label="Price (₹)"><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
             <td data-label="GST %"><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
             <td data-label="Discount (₹)"><input type="number" class="form-control item-discount" value="0" step="0.01" readonly tabindex="-1"></td>
@@ -162,6 +199,7 @@ const InvoiceManager = {
             tr.querySelector('.item-company').value = data.company || '';
             tr.querySelector('.item-variant').value = data.variant || '';
             tr.querySelector('.item-qty').value = data.qty;
+            tr.querySelector('.item-stock-billing').textContent = data.stockAtBilling != null ? data.stockAtBilling : '—';
             tr.querySelector('.item-price').value = data.price;
             tr.querySelector('.item-gst').value = data.gstPercent;
             tr.querySelector('.item-discount').value = data.discount;
@@ -170,6 +208,11 @@ const InvoiceManager = {
     },
 
     removeLineItem(rowId) {
+        // Cancel any pending debounced stock toast for this row
+        if (this._stockToastTimers[rowId]) {
+            clearTimeout(this._stockToastTimers[rowId]);
+            delete this._stockToastTimers[rowId];
+        }
         const row = document.getElementById(rowId);
         if (row) {
             row.remove();
@@ -226,9 +269,11 @@ const InvoiceManager = {
                     group.forEach(p => {
                         const div = document.createElement('div');
                         div.className = 'autocomplete-item';
-                        const stockLabel = p.stockQty <= 0 
-                            ? '<span class="text-error">Out of Stock</span>' 
-                            : `<span class="text-success">Stock: ${p.stockQty}</span>`;
+                        const stockLabel = p.stockQty <= 0
+                            ? '<span class="text-error">Out of Stock</span>'
+                            : p.stockQty <= p.lowStockThreshold
+                                ? `<span class="text-warning">⚠ Low Stock: ${p.stockQty}</span>`
+                                : `<span class="text-success">Stock: ${p.stockQty}</span>`;
                         
                         div.innerHTML = `
                             <div class="ac-row">
@@ -242,7 +287,7 @@ const InvoiceManager = {
                                 ${stockLabel}
                             </div>
                         `;
-                        div.addEventListener('click', () => {
+                        div.addEventListener('click', async () => {
                             // Auto-fill ALL fields from inventory
                             searchInput.value = p.name;
                             row.querySelector('.item-product-id').value = p.id;
@@ -254,6 +299,8 @@ const InvoiceManager = {
                             dropdown.style.display = 'none';
                             this.calculateRowTotal(row);
                             this.calculateTotals();
+                            // Check stock warning immediately with the default qty of 1
+                            await this.checkRowStock(row);
                             // Move focus to qty so user can set quantity next
                             qtyInput.focus();
                             qtyInput.select();
@@ -273,9 +320,11 @@ const InvoiceManager = {
             }
         });
 
-        // When user clears the search field, also clear auto-filled fields
-        searchInput.addEventListener('change', () => {
+        // When user clears the search field, also clear auto-filled fields and stock warnings
+        searchInput.addEventListener('change', async () => {
             if (!searchInput.value.trim()) {
+                const oldProductId = row.querySelector('.item-product-id').value;
+
                 row.querySelector('.item-product-id').value = '';
                 row.querySelector('.item-company').value = '';
                 row.querySelector('.item-variant').value = '';
@@ -284,14 +333,110 @@ const InvoiceManager = {
                 discountInput.value = 0;
                 this.calculateRowTotal(row);
                 this.calculateTotals();
+
+                // Clear stock warnings from this row
+                this._clearRowWarnings(row);
+
+                // If other rows still reference the old product, recalculate their warnings
+                if (oldProductId) {
+                    let otherRow = null;
+                    document.querySelectorAll('#invoice-items-body tr').forEach(r => {
+                        if (r.id !== row.id && r.querySelector('.item-product-id').value === oldProductId) {
+                            otherRow = r;
+                        }
+                    });
+                    if (otherRow) {
+                        await this.checkRowStock(otherRow);
+                    }
+                }
             }
         });
 
-        // Recalculate on qty change
-        qtyInput.addEventListener('input', () => {
+        // Recalculate on qty change & check stock
+        qtyInput.addEventListener('input', async () => {
             this.calculateRowTotal(row);
             this.calculateTotals();
+            await this.checkRowStock(row);
         });
+    },
+
+    async checkRowStock(row) {
+        const productId = row.querySelector('.item-product-id').value;
+        if (!productId) return;
+
+        const product = await window.appDB.get('products', productId);
+        if (!product) return;
+
+        // Compute total requested quantity for this product across ALL rows,
+        // and collect all matching rows so we can update them together
+        let totalRequested = 0;
+        let rowCount = 0;
+        const matchingRows = [];
+        document.querySelectorAll('#invoice-items-body tr').forEach(r => {
+            if (r.querySelector('.item-product-id').value === productId) {
+                totalRequested += parseFloat(r.querySelector('.item-qty').value) || 0;
+                rowCount++;
+                matchingRows.push(r);
+            }
+        });
+
+        // Clear any pending debounced toast for the triggering row only
+        const triggerRowId = row.id;
+        if (this._stockToastTimers[triggerRowId]) {
+            clearTimeout(this._stockToastTimers[triggerRowId]);
+            delete this._stockToastTimers[triggerRowId];
+        }
+
+        const isLow = totalRequested > product.stockQty;
+
+        // Update ALL matching rows (red border + warning text + row highlight, or cleared)
+        matchingRows.forEach(r => {
+            // Remove any existing stock warning from this row
+            const existingWarning = r.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
+
+            if (isLow) {
+                r.classList.add('row-stock-warning');
+                r.querySelector('.item-qty').style.borderColor = 'var(--danger)';
+                const warning = document.createElement('div');
+                warning.className = 'stock-warning';
+                warning.style.cssText = 'color: var(--danger); font-size: 0.75rem; margin-top: 4px;';
+                if (rowCount > 1) {
+                    warning.textContent = `Only ${product.stockQty} in stock! Total ${totalRequested} requested across ${rowCount} rows.`;
+                } else {
+                    warning.textContent = `Only ${product.stockQty} in stock!`;
+                }
+                r.querySelector('.item-qty').parentNode.appendChild(warning);
+            } else {
+                r.classList.remove('row-stock-warning');
+                r.querySelector('.item-qty').style.borderColor = '';
+            }
+        });            // Debounce the toast — only fire after user stops typing for 800ms
+        if (isLow) {
+            this._stockToastTimers[triggerRowId] = setTimeout(() => {
+                const msg = rowCount > 1
+                    ? `That amount of "${product.name}" is not available. We have only ${product.stockQty} in stock and ${totalRequested} requested across ${rowCount} rows.`
+                    : `That amount of "${product.name}" is not available. We have only ${product.stockQty} in stock.`;
+                Utils.showToast(msg, "error");
+                delete this._stockToastTimers[triggerRowId];
+            }, 800);
+        }
+    },
+
+    _clearRowWarnings(row) {
+        // Cancel any pending debounced toast for this row
+        if (this._stockToastTimers[row.id]) {
+            clearTimeout(this._stockToastTimers[row.id]);
+            delete this._stockToastTimers[row.id];
+        }
+        // Remove warning text element
+        const existingWarning = row.querySelector('.stock-warning');
+        if (existingWarning) existingWarning.remove();
+        // Reset qty border
+        const qtyInput = row.querySelector('.item-qty');
+        if (qtyInput) qtyInput.style.borderColor = '';
+        // Remove row highlight
+        row.classList.remove('row-stock-warning');
     },
 
     calculateRowTotal(row) {
@@ -413,21 +558,81 @@ const InvoiceManager = {
         };
 
         try {
+            // --- Step 1: Aggregate quantities per productId (handles duplicate products across rows) ---
+            const productQtys = {};
+            const productNames = {};
+            for (const item of items) {
+                if (item.productId) {
+                    productQtys[item.productId] = (productQtys[item.productId] || 0) + item.qty;
+                    productNames[item.productId] = item.name;
+                }
+            }
+
+            // --- Step 2: Validate total stock availability for each product & capture stock ---
+            const productStock = {};
+            for (const [productId, totalQty] of Object.entries(productQtys)) {
+                const product = await window.appDB.get('products', productId);
+                if (product) {
+                    productStock[productId] = product.stockQty;
+                    if (totalQty > product.stockQty) {
+                        Utils.showToast(`That amount of "${productNames[productId]}" is not available. We have only ${product.stockQty} in stock.`, "error");
+                        return;
+                    }
+                }
+            }
+
+            // Attach stockAtBilling to each item before saving
+            for (const item of items) {
+                if (item.productId && productStock[item.productId] !== undefined) {
+                    item.stockAtBilling = productStock[item.productId];
+                }
+            }
+
             // Save Invoice
             await window.appDB.put('invoices', invoiceRecord);
             
-            // Deduct Stock for linked products
-            for (const item of items) {
-                if (item.productId) {
-                    const product = await window.appDB.get('products', item.productId);
-                    if (product) {
-                        product.stockQty -= item.qty;
-                        await window.appDB.put('products', product);
+            // --- Step 3: Deduct Stock for linked products, update last sold date & check low stock ---
+            const lowStockItems = [];
+            for (const [productId, totalQty] of Object.entries(productQtys)) {
+                const product = await window.appDB.get('products', productId);
+                if (product) {
+                    product.stockQty -= totalQty;
+                    product.lastSoldDate = invoiceRecord.date;
+                    await window.appDB.put('products', product);
+                    
+                    // Record stock history entry
+                    if (window.StockHistoryManager) {
+                        window.StockHistoryManager.addEntry({
+                            productId: product.id,
+                            productName: product.name,
+                            change: -totalQty,
+                            remaining: product.stockQty,
+                            date: invoiceRecord.date,
+                            invoiceNumber: invoiceRecord.number,
+                            type: 'sale'
+                        });
+                    }
+                    
+                    // Check if stock is now at or below threshold
+                    if (product.stockQty <= product.lowStockThreshold) {
+                        lowStockItems.push({ name: product.name, qty: product.stockQty });
                     }
                 }
             }
 
             Utils.showToast("Invoice Saved & Stock Updated!", "success");
+
+            // Show low stock warnings after the success toast
+            if (lowStockItems.length > 0) {
+                setTimeout(() => {
+                    lowStockItems.forEach(item => {
+                        const msg = item.qty <= 0
+                            ? `Low Stock: "${item.name}" is now out of stock!`
+                            : `Low Stock: Only ${item.qty} of "${item.name}" remaining!`;
+                        Utils.showToast(msg, "warning");
+                    });
+                }, 500);
+            }
             
             // Re-render inventory if it's cached/loaded
             if (window.InventoryManager) {
@@ -437,8 +642,10 @@ const InvoiceManager = {
             // Go back to history
             document.getElementById('invoice-editor').style.display = 'none';
             document.getElementById('invoice-history').style.display = 'block';
+            document.getElementById('dashboard-stats').style.display = '';
             document.getElementById('btn-new-invoice').style.display = 'inline-flex';
             await this.loadHistory();
+            await this.renderDashboardStats();
 
         } catch (e) {
             console.error(e);
@@ -474,7 +681,8 @@ const InvoiceManager = {
                 qty: item.qty,
                 price: item.price,
                 gstPercent: item.gstPercent,
-                discount: item.discount
+                discount: item.discount,
+                stockAtBilling: item.stockAtBilling
             };
             this.addLineItem(rowData);
         });
@@ -487,18 +695,59 @@ const InvoiceManager = {
         // UI Toggle
         document.getElementById('invoice-editor').style.display = 'block';
         document.getElementById('invoice-history').style.display = 'none';
+        document.getElementById('dashboard-stats').style.display = 'none';
         document.getElementById('btn-new-invoice').style.display = 'none';
     },
 
     async deleteInvoice(id) {
-        if(confirm("Delete this invoice? This will NOT restore inventory stock.")) {
-            try {
-                await window.appDB.delete('invoices', id);
-                Utils.showToast("Invoice deleted");
-                await this.loadHistory();
-            } catch(e) {
-                Utils.showToast("Failed to delete invoice", "error");
+        if(!confirm("Delete this invoice? Stock will be restored.")) {
+            return;
+        }
+        try {
+            // Find the invoice first to get its items
+            const inv = this.invoices.find(i => i.id === id);
+            if (!inv) {
+                Utils.showToast("Invoice not found", "error");
+                return;
             }
+
+            // Restore stock for each item that has a linked product
+            for (const item of inv.items) {
+                if (!item.productId) continue;
+
+                const product = await window.appDB.get('products', item.productId);
+                if (product) {
+                    product.stockQty += item.qty;
+                    await window.appDB.put('products', product);
+
+                    // Record a restock history entry
+                    if (window.StockHistoryManager) {
+                        window.StockHistoryManager.addEntry({
+                            productId: product.id,
+                            productName: product.name,
+                            change: +item.qty,  // positive = restocked
+                            remaining: product.stockQty,
+                            date: new Date().toISOString().split('T')[0],
+                            invoiceNumber: inv.number,
+                            type: 'restore'
+                        });
+                    }
+                }
+            }
+
+            // Delete the invoice
+            await window.appDB.delete('invoices', id);
+            Utils.showToast("Invoice deleted — stock restored", "success");
+
+            // Refresh views
+            await this.loadHistory();
+            await this.renderDashboardStats();
+            if (window.InventoryManager) {
+                window.InventoryManager.loadInventory();
+            }
+        } catch(e) {
+            console.error(e);
+            Utils.showToast("Failed to delete invoice", "error");
         }
     },
 
