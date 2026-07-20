@@ -303,6 +303,32 @@
           </header>
 
           <div class="view-body">
+            <!-- Inventory Restock Panel -->
+            <div id="inventory-restock-panel" class="inline-restock-panel" style="display:none; margin-bottom: 1rem;">
+              <div class="inline-restock-header">
+                <span class="inline-restock-title">+ Restock: <strong id="inv-restock-product-name"></strong></span>
+                <button class="btn btn-sm btn-outline" id="btn-cancel-inv-restock">✕ Cancel</button>
+              </div>
+              <div class="inline-restock-form">
+                <div class="inline-restock-info">
+                  <span>Current Stock: <strong id="inv-restock-current-stock"></strong></span>
+                </div>
+                <div class="inline-restock-input-row">
+                  <label for="inv-restock-qty-input">Quantity to add:</label>
+                  <input type="number" id="inv-restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
+                  <button class="btn btn-secondary btn-sm" id="btn-confirm-inv-restock">Confirm Restock</button>
+                </div>
+                <div class="restock-presets">
+                  <button class="restock-preset-btn" data-qty="5" data-target="inv-restock-qty-input">+5</button>
+                  <button class="restock-preset-btn" data-qty="10" data-target="inv-restock-qty-input">+10</button>
+                  <button class="restock-preset-btn" data-qty="25" data-target="inv-restock-qty-input">+25</button>
+                  <button class="restock-preset-btn" data-qty="50" data-target="inv-restock-qty-input">+50</button>
+                  <button class="restock-preset-btn" data-qty="100" data-target="inv-restock-qty-input">+100</button>
+                </div>
+                <div class="inline-restock-preview" id="inv-restock-preview"></div>
+              </div>
+            </div>
+
             <!-- Product Form Modal/Section -->
             <div
               id="product-editor"
@@ -608,6 +634,13 @@
                 <input type="number" id="restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
                 <button class="btn btn-secondary btn-sm" id="btn-confirm-restock">Confirm Restock</button>
               </div>
+              <div class="restock-presets">
+                <button class="restock-preset-btn" data-qty="5">+5</button>
+                <button class="restock-preset-btn" data-qty="10">+10</button>
+                <button class="restock-preset-btn" data-qty="25">+25</button>
+                <button class="restock-preset-btn" data-qty="50">+50</button>
+                <button class="restock-preset-btn" data-qty="100">+100</button>
+              </div>
               <div class="inline-restock-preview" id="restock-preview"></div>
             </div>
           </div>
@@ -622,6 +655,13 @@
                 <label for="bulk-restock-qty-input">Quantity to add per item:</label>
                 <input type="number" id="bulk-restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
                 <button class="btn btn-primary btn-sm" id="btn-confirm-bulk-restock">Restock All Selected</button>
+              </div>
+              <div class="restock-presets">
+                <button class="restock-preset-btn" data-qty="5" data-target="bulk-restock-qty-input">+5</button>
+                <button class="restock-preset-btn" data-qty="10" data-target="bulk-restock-qty-input">+10</button>
+                <button class="restock-preset-btn" data-qty="25" data-target="bulk-restock-qty-input">+25</button>
+                <button class="restock-preset-btn" data-qty="50" data-target="bulk-restock-qty-input">+50</button>
+                <button class="restock-preset-btn" data-qty="100" data-target="bulk-restock-qty-input">+100</button>
               </div>
               <div class="bulk-restock-preview" id="bulk-restock-preview"></div>
               <div class="bulk-restock-items" id="bulk-restock-items"></div>

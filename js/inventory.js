@@ -26,12 +26,13 @@ const InventoryManager = {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.getElementById('stock-history-modal').style.display = 'none';
-                document.getElementById('low-stock-modal').style.display = 'none';
-                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-                // Clean up restock state
-                document.getElementById('inline-restock-panel').style.display = 'none';
-                this._restockProductId = null;
-                // Clean up bulk restock state
+        document.getElementById('low-stock-modal').style.display = 'none';
+        document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+        // Clean up restock state
+        document.getElementById('inline-restock-panel').style.display = 'none';
+        document.getElementById('inventory-restock-panel').style.display = 'none';
+        this._restockProductId = null;
+        // Clean up bulk restock state
                 document.getElementById('bulk-restock-panel').style.display = 'none';
                 this._resetBulkSelection();
             }
@@ -43,6 +44,8 @@ const InventoryManager = {
         try {
             this.products = await window.appDB.getAll('products');
             this.renderTable(this.products);
+            // Hide inventory restock panel when reloading
+            document.getElementById('inventory-restock-panel').style.display = 'none';
         } catch (e) {
             console.error(e);
             Utils.showToast("Failed to load inventory", "error");
@@ -89,7 +92,7 @@ const InventoryManager = {
                 <td>
                     <button class="btn btn-outline btn-sm" onclick="InventoryManager.editProduct('${prod.id}')">Edit</button>
                     <button class="btn btn-outline btn-sm" onclick="InventoryManager.showHistory('${prod.id}')">📋</button>
-                    <button class="btn btn-secondary btn-sm" onclick="InventoryManager.restockProduct('${prod.id}')">+ Restock</button>
+                    <button class="btn btn-secondary btn-sm" onclick="InventoryManager.showInventoryRestock('${prod.id}')">+ Restock</button>
                     <button class="btn btn-danger btn-sm" onclick="InventoryManager.deleteProduct('${prod.id}')">Del</button>
                 </td>
             `;
@@ -240,14 +243,74 @@ const InventoryManager = {
         }
     },
 
-    async restockProduct(productId) {
+    showInventoryRestock(productId) {
         const prod = this.products.find(p => p.id === productId);
         if (!prod) return;
 
-        const input = prompt(`Add stock to "${prod.name}" (Current: ${prod.stockQty}):`, '10');
-        if (input === null) return; // Cancel
+        this._restockProductId = productId;
 
-        const qty = parseInt(input, 10);
+        document.getElementById('inv-restock-product-name').textContent = prod.name;
+        document.getElementById('inv-restock-current-stock').textContent = prod.stockQty;
+
+        const qtyInput = document.getElementById('inv-restock-qty-input');
+        qtyInput.value = 10;
+        qtyInput.focus();
+        qtyInput.select();
+
+        this._updateRestockPreview(prod.stockQty, 10);
+
+        document.getElementById('inventory-restock-panel').style.display = 'block';
+
+        // Bind events (only once)
+        if (!this._invRestockEventsBound) {
+            document.getElementById('btn-cancel-inv-restock').addEventListener('click', () => {
+                document.getElementById('inventory-restock-panel').style.display = 'none';
+                this._restockProductId = null;
+            });
+
+            document.getElementById('btn-confirm-inv-restock').addEventListener('click', () => this._confirmInventoryRestock());
+
+            const qtyInputEl = document.getElementById('inv-restock-qty-input');
+            qtyInputEl.addEventListener('input', () => {
+                const p = this.products.find(x => x.id === this._restockProductId);
+                if (p) {
+                    const qty = parseInt(qtyInputEl.value, 10);
+                    if (!isNaN(qty) && qty > 0) {
+                        this._updateRestockPreview(p.stockQty, qty);
+                    }
+                }
+            });
+            qtyInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this._confirmInventoryRestock();
+                }
+            });
+
+            // Preset buttons for inventory restock
+            document.querySelectorAll('#inventory-restock-panel .restock-preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const qty = parseInt(btn.dataset.qty, 10);
+                    if (!isNaN(qty) && qty > 0) {
+                        qtyInputEl.value = qty;
+                        qtyInputEl.dispatchEvent(new Event('input'));
+                    }
+                });
+            });
+
+            this._invRestockEventsBound = true;
+        }
+    },
+
+    async _confirmInventoryRestock() {
+        const productId = this._restockProductId;
+        if (!productId) return;
+
+        const prod = this.products.find(p => p.id === productId);
+        if (!prod) return;
+
+        const qtyInput = document.getElementById('inv-restock-qty-input');
+        const qty = parseInt(qtyInput.value, 10);
         if (isNaN(qty) || qty <= 0) {
             Utils.showToast('Enter a valid positive number.', 'error');
             return;
@@ -270,6 +333,9 @@ const InventoryManager = {
             }
 
             Utils.showToast(`Restocked +${qty} of "${prod.name}". Now ${prod.stockQty} in stock.`, 'success');
+
+            document.getElementById('inventory-restock-panel').style.display = 'none';
+            this._restockProductId = null;
             await this.loadInventory();
         } catch (e) {
             console.error('Failed to restock:', e);
@@ -413,32 +479,41 @@ const InventoryManager = {
                 this._updateBulkPanel();
             });
             this._bulkSelectAllBound = true;
-        }
+        }            // Bulk restock panel event bindings (only once)
+            if (!this._bulkRestockEventsBound) {
+                document.getElementById('btn-cancel-bulk-restock').addEventListener('click', () => {
+                    this._resetBulkSelection();
+                    document.getElementById('bulk-restock-panel').style.display = 'none';
+                });
 
-        // Bulk restock panel event bindings (only once)
-        if (!this._bulkRestockEventsBound) {
-            document.getElementById('btn-cancel-bulk-restock').addEventListener('click', () => {
-                this._resetBulkSelection();
-                document.getElementById('bulk-restock-panel').style.display = 'none';
-            });
-
-            document.getElementById('btn-confirm-bulk-restock').addEventListener('click', () => {
-                this._confirmBulkRestock();
-            });
-
-            document.getElementById('bulk-restock-qty-input').addEventListener('input', () => {
-                this._updateBulkPreview();
-            });
-
-            document.getElementById('bulk-restock-qty-input').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
+                document.getElementById('btn-confirm-bulk-restock').addEventListener('click', () => {
                     this._confirmBulkRestock();
-                }
-            });
+                });
 
-            this._bulkRestockEventsBound = true;
-        }
+                document.getElementById('bulk-restock-qty-input').addEventListener('input', () => {
+                    this._updateBulkPreview();
+                });
+
+                document.getElementById('bulk-restock-qty-input').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this._confirmBulkRestock();
+                    }
+                });
+
+                // Bind preset buttons for bulk restock panel
+                document.querySelectorAll('#bulk-restock-panel .restock-preset-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const qty = parseInt(btn.dataset.qty, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            document.getElementById('bulk-restock-qty-input').value = qty;
+                            document.getElementById('bulk-restock-qty-input').dispatchEvent(new Event('input'));
+                        }
+                    });
+                });
+
+                this._bulkRestockEventsBound = true;
+            }
     },
 
     _resetBulkSelection() {
@@ -590,34 +665,46 @@ const InventoryManager = {
         this._updateRestockPreview(prod.stockQty, 10);
 
         // Show the inline panel
-        document.getElementById('inline-restock-panel').style.display = 'block';
+        document.getElementById('inline-restock-panel').style.display = 'block';            // Bind events (only once using a flag)
+            if (!this._restockEventsBound) {
+                document.getElementById('btn-cancel-restock').addEventListener('click', () => {
+                    document.getElementById('inline-restock-panel').style.display = 'none';
+                    this._restockProductId = null;
+                });
 
-        // Bind events (only once using a flag)
-        if (!this._restockEventsBound) {
-            document.getElementById('btn-cancel-restock').addEventListener('click', () => {
-                document.getElementById('inline-restock-panel').style.display = 'none';
-                this._restockProductId = null;
-            });
+                document.getElementById('btn-confirm-restock').addEventListener('click', () => this._confirmInlineRestock());
 
-            document.getElementById('btn-confirm-restock').addEventListener('click', () => this._confirmInlineRestock());
-
-            qtyInput.addEventListener('input', () => {
-                const prod = this.products.find(p => p.id === this._restockProductId);
-                if (prod) {
-                    const qty = parseInt(qtyInput.value, 10);
-                    if (!isNaN(qty) && qty > 0) {
-                        this._updateRestockPreview(prod.stockQty, qty);
+                qtyInput.addEventListener('input', () => {
+                    const prod = this.products.find(p => p.id === this._restockProductId);
+                    if (prod) {
+                        const qty = parseInt(qtyInput.value, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            this._updateRestockPreview(prod.stockQty, qty);
+                        }
                     }
-                }
-            });
-            qtyInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this._confirmInlineRestock();
-                }
-            });
-            this._restockEventsBound = true;
-        }
+                });
+                qtyInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this._confirmInlineRestock();
+                    }
+                });
+                this._restockEventsBound = true;
+            }
+
+            // Bind preset buttons for inline restock (low stock modal)
+            if (!this._restockPresetsBound) {
+                document.querySelectorAll('#inline-restock-panel .restock-preset-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const qty = parseInt(btn.dataset.qty, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            qtyInput.value = qty;
+                            qtyInput.dispatchEvent(new Event('input'));
+                        }
+                    });
+                });
+                this._restockPresetsBound = true;
+            }
     },
 
     _updateRestockPreview(currentStock, qty) {

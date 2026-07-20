@@ -849,6 +849,41 @@ body.theme-dark .low-stock-row:hover {
     }
 }
 
+/* Restock Preset Buttons */
+.restock-presets {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.restock-preset-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    background-color: var(--surface);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.restock-preset-btn:hover {
+    background-color: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+
+.restock-preset-btn:active {
+    transform: scale(0.95);
+}
+
 /* Bulk Restock Panel */
 .bulk-restock-panel {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(56, 189, 248, 0.08));
