@@ -563,7 +563,15 @@
               </select>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-clear-history-filter" style="align-self:flex-end;">Clear</button>
-            <button class="btn btn-outline btn-sm" id="btn-export-history-csv" style="align-self:flex-end;">📥 CSV</button>
+            <div class="download-dropdown" id="download-dropdown" style="align-self:flex-end; position:relative;">
+              <button class="btn btn-outline btn-sm" id="btn-download-dropdown-toggle">📥 Download ▾</button>
+              <div class="download-dropdown-menu" id="btn-download-dropdown-menu" style="display:none;">
+                <button class="download-dropdown-item" id="btn-export-history-xlsx">📊 Export as XLSX</button>
+                <button class="download-dropdown-item" id="btn-export-history-pdf">📄 Export as PDF</button>
+                <button class="download-dropdown-item" id="btn-export-history-svg">📈 Export Chart as SVG</button>
+                <button class="download-dropdown-item" id="btn-export-history-csv">📋 Export as CSV</button>
+              </div>
+            </div>
           </div>
           <!-- History table populated dynamically -->
           <div id="stock-history-content">
@@ -581,7 +589,7 @@
       <div class="modal-card" style="max-width:800px;">
         <div class="modal-header">
           <h3 class="modal-title">⚠️ Low Stock Items <span id="low-stock-count" class="badge badge-danger" style="font-size:0.8rem; margin-left:0.5rem;">0</span></h3>
-          <button class="btn btn-sm btn-outline modal-close-btn" onclick="document.getElementById('low-stock-modal').style.display='none'">✕</button>
+          <button class="btn btn-sm btn-outline modal-close-btn" onclick="document.getElementById('low-stock-modal').style.display='none'; InventoryManager._resetBulkSelection(); document.getElementById('bulk-restock-panel').style.display='none';">✕</button>
         </div>
         <div class="modal-body">
           <!-- Inline Restock Panel (hidden by default) -->
@@ -603,10 +611,27 @@
               <div class="inline-restock-preview" id="restock-preview"></div>
             </div>
           </div>
+          <!-- Bulk Restock Panel (hidden by default) -->
+          <div id="bulk-restock-panel" class="bulk-restock-panel" style="display:none;">
+            <div class="bulk-restock-header">
+              <span class="bulk-restock-title">📦 Bulk Restock — <strong id="bulk-selected-count">0</strong> items selected</span>
+              <button class="btn btn-sm btn-outline" id="btn-cancel-bulk-restock">✕ Cancel</button>
+            </div>
+            <div class="bulk-restock-form">
+              <div class="bulk-restock-input-row">
+                <label for="bulk-restock-qty-input">Quantity to add per item:</label>
+                <input type="number" id="bulk-restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
+                <button class="btn btn-primary btn-sm" id="btn-confirm-bulk-restock">Restock All Selected</button>
+              </div>
+              <div class="bulk-restock-preview" id="bulk-restock-preview"></div>
+              <div class="bulk-restock-items" id="bulk-restock-items"></div>
+            </div>
+          </div>
           <div class="table-responsive">
             <table class="data-table" id="low-stock-table">
               <thead>
                 <tr>
+                  <th style="width:40px;"><input type="checkbox" id="bulk-select-all" title="Select all"></th>
                   <th>Product</th>
                   <th>Company</th>
                   <th>Price</th>
@@ -621,7 +646,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="document.getElementById('low-stock-modal').style.display='none'">Close</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('low-stock-modal').style.display='none'; InventoryManager._resetBulkSelection(); document.getElementById('bulk-restock-panel').style.display='none';">Close</button>
         </div>
       </div>
     </div>

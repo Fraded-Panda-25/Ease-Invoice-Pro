@@ -11,19 +11,29 @@ const InventoryManager = {
         document.getElementById('stock-history-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
                 e.currentTarget.style.display = 'none';
+                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
             }
         });
         // Close low stock modal when clicking outside the card
         document.getElementById('low-stock-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
                 e.currentTarget.style.display = 'none';
+                this._resetBulkSelection();
+                document.getElementById('bulk-restock-panel').style.display = 'none';
             }
         });
-        // Close modals on Escape key
+        // Close modals, dropdowns on Escape key (single consolidated handler)
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.getElementById('stock-history-modal').style.display = 'none';
                 document.getElementById('low-stock-modal').style.display = 'none';
+                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+                // Clean up restock state
+                document.getElementById('inline-restock-panel').style.display = 'none';
+                this._restockProductId = null;
+                // Clean up bulk restock state
+                document.getElementById('bulk-restock-panel').style.display = 'none';
+                this._resetBulkSelection();
             }
         });
         await this.loadInventory();
@@ -133,8 +143,36 @@ const InventoryManager = {
             document.getElementById('filter-history-type').value = '';
             this._applyHistoryFilter();
         });
+        // Download dropdown toggle
+        document.getElementById('btn-download-dropdown-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = document.getElementById('btn-download-dropdown-menu');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#download-dropdown')) {
+                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            }
+        });
+
+        // Export buttons
         document.getElementById('btn-export-history-csv').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
             this._exportHistoryCSV();
+        });
+        document.getElementById('btn-export-history-xlsx').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            this._exportHistoryXLSX();
+        });
+        document.getElementById('btn-export-history-pdf').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            this._exportHistoryPDF();
+        });
+        document.getElementById('btn-export-history-svg').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            this._exportHistorySVG();
         });
     },
 
@@ -284,18 +322,26 @@ const InventoryManager = {
             countEl.textContent = lowStockProducts.length;
             tbody.innerHTML = '';
             
+            // Reset bulk selection
+            this._bulkSelectedIds = [];
+            document.getElementById('bulk-restock-panel').style.display = 'none';
+            const selectAllCb = document.getElementById('bulk-select-all');
+            if (selectAllCb) selectAllCb.checked = false;
+            
             if (lowStockProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">🎉 No low stock items! All products are well stocked.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">🎉 No low stock items! All products are well stocked.</td></tr>';
             } else {
                 lowStockProducts.forEach(prod => {
                     const tr = document.createElement('tr');
                     tr.classList.add('low-stock-row');
+                    tr.dataset.productId = prod.id;
                     
                     const isOut = prod.stockQty <= 0;
                     const badgeClass = isOut ? 'badge badge-danger' : 'badge badge-warning';
                     const statusText = isOut ? 'Out of Stock' : `${prod.stockQty} / ${prod.lowStockThreshold}`;
                     
                     tr.innerHTML = `
+                        <td><input type="checkbox" class="low-stock-checkbox" data-id="${prod.id}" title="Select for bulk restock"></td>
                         <td><strong>${this.escapeHTML(prod.name)}</strong></td>
                         <td>${this.escapeHTML(prod.company || '-')}</td>
                         <td>${Utils.formatCurrency(prod.unitPrice)}</td>
@@ -309,6 +355,9 @@ const InventoryManager = {
                     `;
                     tbody.appendChild(tr);
                 });
+                
+                // Bind checkbox events
+                this._bindBulkCheckboxes();
             }
             
             modal.style.display = 'flex';
@@ -318,11 +367,310 @@ const InventoryManager = {
         }
     },
 
-    async restockFromLowStock(productId) {
-        document.getElementById('low-stock-modal').style.display = 'none';
-        await this.restockProduct(productId);
-        // Re-open low stock modal after restock (loadInventory already called in restockProduct)
+    _bindBulkCheckboxes() {
+        // Initialize selection array
+        this._bulkSelectedIds = this._bulkSelectedIds || [];
+
+        // Use event delegation on tbody for individual checkboxes (no duplicate listeners)
+        const tbody = document.getElementById('low-stock-body');
+        if (!this._bulkTbodyDelegated) {
+            tbody.addEventListener('change', (e) => {
+                if (e.target.classList.contains('low-stock-checkbox')) {
+                    const id = e.target.dataset.id;
+                    if (e.target.checked) {
+                        if (!this._bulkSelectedIds.includes(id)) {
+                            this._bulkSelectedIds.push(id);
+                        }
+                        e.target.closest('tr').classList.add('selected');
+                    } else {
+                        this._bulkSelectedIds = this._bulkSelectedIds.filter(x => x !== id);
+                        e.target.closest('tr').classList.remove('selected');
+                    }
+                    this._syncSelectAllState();
+                    this._updateBulkPanel();
+                }
+            });
+            this._bulkTbodyDelegated = true;
+        }
+
+        // Select all checkbox
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (selectAllCb && !this._bulkSelectAllBound) {
+            selectAllCb.addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                document.querySelectorAll('.low-stock-checkbox').forEach(cb => {
+                    cb.checked = checked;
+                    const id = cb.dataset.id;
+                    const row = cb.closest('tr');
+                    if (checked) {
+                        if (!this._bulkSelectedIds.includes(id)) this._bulkSelectedIds.push(id);
+                        if (row) row.classList.add('selected');
+                    } else {
+                        this._bulkSelectedIds = [];
+                        if (row) row.classList.remove('selected');
+                    }
+                });
+                this._updateBulkPanel();
+            });
+            this._bulkSelectAllBound = true;
+        }
+
+        // Bulk restock panel event bindings (only once)
+        if (!this._bulkRestockEventsBound) {
+            document.getElementById('btn-cancel-bulk-restock').addEventListener('click', () => {
+                this._resetBulkSelection();
+                document.getElementById('bulk-restock-panel').style.display = 'none';
+            });
+
+            document.getElementById('btn-confirm-bulk-restock').addEventListener('click', () => {
+                this._confirmBulkRestock();
+            });
+
+            document.getElementById('bulk-restock-qty-input').addEventListener('input', () => {
+                this._updateBulkPreview();
+            });
+
+            document.getElementById('bulk-restock-qty-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this._confirmBulkRestock();
+                }
+            });
+
+            this._bulkRestockEventsBound = true;
+        }
+    },
+
+    _resetBulkSelection() {
+        this._bulkSelectedIds = [];
+        document.querySelectorAll('.low-stock-checkbox').forEach(cb => { cb.checked = false; });
+        document.querySelectorAll('.low-stock-row.selected').forEach(r => r.classList.remove('selected'));
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+    },
+
+    _syncSelectAllState() {
+        const allCbs = document.querySelectorAll('.low-stock-checkbox');
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (!selectAllCb || allCbs.length === 0) return;
+        const allChecked = [...allCbs].every(cb => cb.checked);
+        selectAllCb.checked = allChecked;
+    },
+
+    _updateBulkPanel() {
+        const panel = document.getElementById('bulk-restock-panel');
+        const countEl = document.getElementById('bulk-selected-count');
+        const count = this._bulkSelectedIds ? this._bulkSelectedIds.length : 0;
+        countEl.textContent = count;
+
+        if (count > 0) {
+            panel.style.display = 'block';
+            this._updateBulkPreview();
+            this._renderBulkItemsList();
+        } else {
+            panel.style.display = 'none';
+        }
+    },
+
+    _updateBulkPreview() {
+        const qtyInput = document.getElementById('bulk-restock-qty-input');
+        const qty = parseInt(qtyInput.value, 10);
+        const previewEl = document.getElementById('bulk-restock-preview');
+        const count = this._bulkSelectedIds ? this._bulkSelectedIds.length : 0;
+
+        if (isNaN(qty) || qty <= 0 || count === 0) {
+            previewEl.textContent = '';
+            return;
+        }
+
+        const totalUnits = qty * count;
+        previewEl.textContent = `Adding ${qty} × ${count} items = ${totalUnits} total units across ${count} products`;
+    },
+
+    _renderBulkItemsList() {
+        const container = document.getElementById('bulk-restock-items');
+        container.innerHTML = '';
+
+        if (!this._bulkSelectedIds) return;
+
+        this._bulkSelectedIds.forEach(id => {
+            const prod = this.products.find(p => p.id === id);
+            if (prod) {
+                const chip = document.createElement('span');
+                chip.className = 'bulk-restock-item-chip';
+                chip.textContent = prod.name;
+                container.appendChild(chip);
+            }
+        });
+    },
+
+    async _confirmBulkRestock() {
+        const ids = this._bulkSelectedIds;
+        if (!ids || ids.length === 0) {
+            Utils.showToast('No items selected for bulk restock.', 'error');
+            return;
+        }
+
+        const qtyInput = document.getElementById('bulk-restock-qty-input');
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            Utils.showToast('Enter a valid positive number.', 'error');
+            return;
+        }
+
+        let restockedCount = 0;
+        const errors = [];
+
+        for (const id of ids) {
+            const prod = this.products.find(p => p.id === id);
+            if (!prod) {
+                errors.push(id);
+                continue;
+            }
+
+            try {
+                prod.stockQty += qty;
+                await window.appDB.put('products', prod);
+
+                if (window.StockHistoryManager) {
+                    window.StockHistoryManager.addEntry({
+                        productId: prod.id,
+                        productName: prod.name,
+                        change: qty,
+                        remaining: prod.stockQty,
+                        date: new Date().toISOString().split('T')[0],
+                        invoiceNumber: '',
+                        type: 'restock'
+                    });
+                }
+
+                restockedCount++;
+            } catch (e) {
+                console.error('Failed to restock:', prod.name, e);
+                errors.push(prod.name);
+            }
+        }
+
+        // Hide bulk panel and reset
+        document.getElementById('bulk-restock-panel').style.display = 'none';
+        this._bulkSelectedIds = [];
+        document.querySelectorAll('.low-stock-checkbox').forEach(cb => { cb.checked = false; });
+        document.querySelectorAll('.low-stock-row.selected').forEach(r => r.classList.remove('selected'));
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+
+        if (errors.length > 0) {
+            Utils.showToast(`Restocked ${restockedCount} items. ${errors.length} failed.`, 'warning');
+        } else {
+            Utils.showToast(`Successfully restocked ${restockedCount} items with +${qty} each!`, 'success');
+        }
+
+        await this.loadInventory();
         this.showLowStockItems();
+    },
+
+    restockFromLowStock(productId) {
+        const prod = this.products.find(p => p.id === productId);
+        if (!prod) return;
+
+        // Store the product being restocked
+        this._restockProductId = productId;
+
+        // Populate the inline restock panel
+        document.getElementById('restock-product-name').textContent = prod.name;
+        document.getElementById('restock-current-stock').textContent = prod.stockQty;
+        document.getElementById('restock-threshold').textContent = prod.lowStockThreshold;
+        
+        const qtyInput = document.getElementById('restock-qty-input');
+        qtyInput.value = 10;
+        qtyInput.focus();
+        qtyInput.select();
+
+        // Show preview
+        this._updateRestockPreview(prod.stockQty, 10);
+
+        // Show the inline panel
+        document.getElementById('inline-restock-panel').style.display = 'block';
+
+        // Bind events (only once using a flag)
+        if (!this._restockEventsBound) {
+            document.getElementById('btn-cancel-restock').addEventListener('click', () => {
+                document.getElementById('inline-restock-panel').style.display = 'none';
+                this._restockProductId = null;
+            });
+
+            document.getElementById('btn-confirm-restock').addEventListener('click', () => this._confirmInlineRestock());
+
+            qtyInput.addEventListener('input', () => {
+                const prod = this.products.find(p => p.id === this._restockProductId);
+                if (prod) {
+                    const qty = parseInt(qtyInput.value, 10);
+                    if (!isNaN(qty) && qty > 0) {
+                        this._updateRestockPreview(prod.stockQty, qty);
+                    }
+                }
+            });
+            qtyInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this._confirmInlineRestock();
+                }
+            });
+            this._restockEventsBound = true;
+        }
+    },
+
+    _updateRestockPreview(currentStock, qty) {
+        const previewEl = document.getElementById('restock-preview');
+        if (isNaN(qty) || qty <= 0) {
+            previewEl.textContent = '';
+            return;
+        }
+        const newTotal = currentStock + qty;
+        previewEl.textContent = `New stock will be: ${currentStock} + ${qty} = ${newTotal}`;
+    },
+
+    async _confirmInlineRestock() {
+        const productId = this._restockProductId;
+        if (!productId) return;
+
+        const prod = this.products.find(p => p.id === productId);
+        if (!prod) return;
+
+        const qtyInput = document.getElementById('restock-qty-input');
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            Utils.showToast('Enter a valid positive number.', 'error');
+            return;
+        }
+
+        try {
+            prod.stockQty += qty;
+            await window.appDB.put('products', prod);
+
+            if (window.StockHistoryManager) {
+                window.StockHistoryManager.addEntry({
+                    productId: prod.id,
+                    productName: prod.name,
+                    change: qty,
+                    remaining: prod.stockQty,
+                    date: new Date().toISOString().split('T')[0],
+                    invoiceNumber: '',
+                    type: 'restock'
+                });
+            }
+
+            Utils.showToast(`Restocked +${qty} of "${prod.name}". Now ${prod.stockQty} in stock.`, 'success');
+
+            // Hide inline panel and refresh low stock list
+            document.getElementById('inline-restock-panel').style.display = 'none';
+            this._restockProductId = null;
+            await this.loadInventory();
+            this.showLowStockItems();
+        } catch (e) {
+            console.error('Failed to restock:', e);
+            Utils.showToast('Failed to restock product.', 'error');
+        }
     },
 
     async editFromLowStock(productId) {
@@ -708,6 +1056,191 @@ const InventoryManager = {
         URL.revokeObjectURL(link.href);
 
         Utils.showToast(`Exported ${entries.length} entries to ${filename}`, 'success');
+    },
+
+    _exportHistoryXLSX() {
+        const entries = this._historyFilteredEntries || this._historyEntries;
+        if (!entries || entries.length === 0) {
+            Utils.showToast('No data to export.', 'error');
+            return;
+        }
+
+        const showProduct = this._historyShowProduct;
+
+        // Build header
+        const headers = [];
+        if (showProduct) headers.push('Product');
+        headers.push('Date', 'Change', 'Remaining', 'Invoice');
+
+        // Build rows
+        const rows = entries.map(e => {
+            const row = [];
+            if (showProduct) row.push(e.productName || '—');
+            row.push(e.date, e.change, e.remaining, e.invoiceNumber || '—');
+            return row;
+        });
+
+        // Compute summary
+        let totalSold = 0, totalRestocked = 0;
+        entries.forEach(e => {
+            if (e.change < 0) totalSold += Math.abs(e.change);
+            else totalRestocked += e.change;
+        });
+        const netChange = totalRestocked - totalSold;
+
+        // Generate XLSX using SheetJS (CDN loaded)
+        if (typeof XLSX === 'undefined') {
+            Utils.showToast('XLSX library loading... Please try again.', 'warning');
+            this._loadSheetJS(() => this._exportHistoryXLSX());
+            return;
+        }
+
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Stock History');
+
+        const filename = showProduct ? 'stock-history-all.xlsx' : 'stock-history.xlsx';
+        XLSX.writeFile(wb, filename);
+        Utils.showToast(`Exported ${entries.length} entries to ${filename}`, 'success');
+    },
+
+    _loadSheetJS(callback) {
+        if (document.getElementById('sheetjs-cdn')) {
+            setTimeout(callback, 500);
+            return;
+        }
+        const script = document.createElement('script');
+        script.id = 'sheetjs-cdn';
+        script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        script.onload = () => setTimeout(callback, 200);
+        script.onerror = () => Utils.showToast('Failed to load XLSX library.', 'error');
+        document.head.appendChild(script);
+    },
+
+    async _exportHistoryPDF() {
+        const entries = this._historyFilteredEntries || this._historyEntries;
+        if (!entries || entries.length === 0) {
+            Utils.showToast('No data to export.', 'error');
+            return;
+        }
+
+        const showProduct = this._historyShowProduct;
+
+        // Build a printable HTML string
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <style>
+            body { font-family: 'Inter', Arial, sans-serif; margin: 20px; color: #1e293b; }
+            h1 { font-size: 18px; margin-bottom: 4px; }
+            .subtitle { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { background: #f1f5f9; text-align: left; padding: 8px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 600; }
+            td { padding: 6px; border-bottom: 1px solid #e2e8f0; }
+            .positive { color: #10b981; font-weight: 600; }
+            .negative { color: #ef4444; font-weight: 600; }
+            .summary { margin-top: 16px; font-size: 12px; color: #64748b; }
+            .summary strong { color: #1e293b; }
+        </style></head><body>
+        <h1>Stock History${showProduct ? ' — All Products' : ''}</h1>
+        <div class="subtitle">Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        <table><thead><tr>`;
+
+        if (showProduct) html += '<th>Product</th>';
+        html += '<th>Date</th><th>Change</th><th>Remaining</th><th>Invoice</th></tr></thead><tbody>';
+
+        entries.forEach(e => {
+            const cls = e.change < 0 ? 'negative' : 'positive';
+            const sign = e.change > 0 ? '+' : '';
+            html += '<tr>';
+            if (showProduct) html += `<td><strong>${this.escapeHTML(e.productName || '—')}</strong></td>`;
+            html += `<td>${e.date}</td><td class="${cls}">${sign}${e.change}</td><td>${e.remaining}</td><td>${this.escapeHTML(e.invoiceNumber || '—')}</td></tr>`;
+        });
+
+        let totalSold = 0, totalRestocked = 0;
+        entries.forEach(e => {
+            if (e.change < 0) totalSold += Math.abs(e.change);
+            else totalRestocked += e.change;
+        });
+        const netChange = totalRestocked - totalSold;
+        const netSign = netChange > 0 ? '+' : '';
+
+        html += `</tbody></table>
+        <div class="summary"><strong>Sold:</strong> ${totalSold} &nbsp;|&nbsp; <strong>Restocked:</strong> ${totalRestocked} &nbsp;|&nbsp; <strong>Net:</strong> ${netSign}${netChange}</div>
+        </body></html>`;
+
+        // Use hidden iframe to avoid popup blockers
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:800px;height:600px;';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(html);
+        iframeDoc.close();
+
+        iframe.onload = () => {
+            setTimeout(() => {
+                iframe.contentWindow.print();
+                setTimeout(() => document.body.removeChild(iframe), 1000);
+            }, 300);
+        };
+        Utils.showToast('PDF preview opened — use Print > Save as PDF', 'success');
+    },
+
+    _exportHistorySVG() {
+        const chartContainer = document.querySelector('#stock-history-content .stock-chart-container');
+        if (!chartContainer) {
+            Utils.showToast('No chart available to export. Need at least 2 data points.', 'warning');
+            return;
+        }
+
+        const svg = chartContainer.querySelector('svg.stock-chart-svg');
+        if (!svg) {
+            Utils.showToast('Chart SVG not found.', 'error');
+            return;
+        }
+
+        // Clone SVG and add inline styles for standalone rendering
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+        // Read current theme CSS variables for accurate export
+        const cs = getComputedStyle(document.documentElement);
+        const colorBorder = cs.getPropertyValue('--border-color').trim() || '#e2e8f0';
+        const colorPrimary = cs.getPropertyValue('--primary').trim() || '#38bdf8';
+        const colorDanger = cs.getPropertyValue('--danger').trim() || '#f87171';
+        const colorSecondary = cs.getPropertyValue('--secondary').trim() || '#34d399';
+        const colorMuted = cs.getPropertyValue('--text-muted').trim() || '#94a3b8';
+        const colorSurface = cs.getPropertyValue('--surface').trim() || '#ffffff';
+
+        // Add inline styles matching current theme
+        const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        style.textContent = `
+            text { font-family: Inter, Arial, sans-serif; }
+            .chart-gridline { stroke: ${colorBorder}; stroke-width: 0.5; stroke-dasharray: 3,3; }
+            .chart-line { fill: none; stroke: ${colorPrimary}; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .chart-area { fill: ${colorPrimary}; opacity: 0.1; }
+            .chart-dot { fill: ${colorPrimary}; stroke: ${colorSurface}; stroke-width: 1.5; }
+            .chart-bar-sold { fill: ${colorDanger}; opacity: 0.8; }
+            .chart-bar-restocked { fill: ${colorSecondary}; opacity: 0.8; }
+            .chart-y-label, .chart-x-label { fill: ${colorMuted}; font-size: 9px; }
+            .chart-legend-text { fill: ${colorMuted}; font-size: 9px; }
+        `;
+        clone.insertBefore(style, clone.firstChild);
+
+        const svgString = new XMLSerializer().serializeToString(clone);
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'stock-history-chart.svg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast('Chart exported as SVG', 'success');
     },
 
     _csvEscape(str) {
