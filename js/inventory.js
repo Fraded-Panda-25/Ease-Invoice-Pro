@@ -13,6 +13,19 @@ const InventoryManager = {
                 e.currentTarget.style.display = 'none';
             }
         });
+        // Close low stock modal when clicking outside the card
+        document.getElementById('low-stock-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.style.display = 'none';
+            }
+        });
+        // Close modals on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('stock-history-modal').style.display = 'none';
+                document.getElementById('low-stock-modal').style.display = 'none';
+            }
+        });
         await this.loadInventory();
     },
 
@@ -41,6 +54,17 @@ const InventoryManager = {
             // Stock logic
             const isLowStock = prod.stockQty <= prod.lowStockThreshold;
             const stockBadgeClass = isLowStock ? 'badge badge-danger' : 'badge badge-success';
+            
+            // Add data attributes for tooltip
+            tr.dataset.productName = this.escapeHTML(prod.name);
+            tr.dataset.productCompany = this.escapeHTML(prod.company || '-');
+            tr.dataset.productVariant = this.escapeHTML(prod.sizeUnit || '-');
+            tr.dataset.productPrice = Utils.formatCurrency(prod.unitPrice);
+            tr.dataset.productStock = prod.stockQty;
+            tr.dataset.productGst = prod.gstPercent || 0;
+            tr.dataset.productDiscount = Utils.formatCurrency(prod.defaultDiscount || 0);
+            tr.dataset.productThreshold = prod.lowStockThreshold;
+            tr.classList.add('inventory-row');
             
             tr.innerHTML = `
                 <td>
@@ -245,6 +269,79 @@ const InventoryManager = {
             console.error('Failed to load stock history:', e);
             Utils.showToast('Failed to load stock history', 'error');
         }
+    },
+
+    async showLowStockItems() {
+        try {
+            // Ensure inventory data is fresh
+            await this.loadInventory();
+            const lowStockProducts = this.products.filter(p => p.stockQty <= p.lowStockThreshold);
+            
+            const modal = document.getElementById('low-stock-modal');
+            const tbody = document.getElementById('low-stock-body');
+            const countEl = document.getElementById('low-stock-count');
+            
+            countEl.textContent = lowStockProducts.length;
+            tbody.innerHTML = '';
+            
+            if (lowStockProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">🎉 No low stock items! All products are well stocked.</td></tr>';
+            } else {
+                lowStockProducts.forEach(prod => {
+                    const tr = document.createElement('tr');
+                    tr.classList.add('low-stock-row');
+                    
+                    const isOut = prod.stockQty <= 0;
+                    const badgeClass = isOut ? 'badge badge-danger' : 'badge badge-warning';
+                    const statusText = isOut ? 'Out of Stock' : `${prod.stockQty} / ${prod.lowStockThreshold}`;
+                    
+                    tr.innerHTML = `
+                        <td><strong>${this.escapeHTML(prod.name)}</strong></td>
+                        <td>${this.escapeHTML(prod.company || '-')}</td>
+                        <td>${Utils.formatCurrency(prod.unitPrice)}</td>
+                        <td><span class="${badgeClass}">${statusText}</span></td>
+                        <td>
+                            <div class="low-stock-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="InventoryManager.restockFromLowStock('${prod.id}')">+ Restock</button>
+                                <button class="btn btn-outline btn-sm" onclick="InventoryManager.editFromLowStock('${prod.id}')">Edit</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            
+            modal.style.display = 'flex';
+        } catch (e) {
+            console.error('Failed to load low stock items:', e);
+            Utils.showToast('Failed to load low stock items', 'error');
+        }
+    },
+
+    async restockFromLowStock(productId) {
+        document.getElementById('low-stock-modal').style.display = 'none';
+        await this.restockProduct(productId);
+        // Re-open low stock modal after restock (loadInventory already called in restockProduct)
+        this.showLowStockItems();
+    },
+
+    async editFromLowStock(productId) {
+        document.getElementById('low-stock-modal').style.display = 'none';
+        // Navigate to inventory page
+        const inventoryLink = document.querySelector('.nav-link[data-target="view-inventory"]');
+        if (inventoryLink) {
+            inventoryLink.click();
+        }
+        // Wait for inventory view to be visible, then open edit form
+        const waitForView = () => {
+            const inventoryView = document.getElementById('view-inventory');
+            if (inventoryView && inventoryView.classList.contains('active')) {
+                this.editProduct(productId);
+            } else {
+                requestAnimationFrame(waitForView);
+            }
+        };
+        requestAnimationFrame(waitForView);
     },
 
     async showAllHistory() {

@@ -17,9 +17,18 @@ const InvoiceManager = {
             const products = await window.appDB.getAll('products');
             document.getElementById('stat-products').textContent = products.length;
             const lowStockCount = products.filter(p => p.stockQty <= p.lowStockThreshold).length;
+            const outOfStockCount = products.filter(p => p.stockQty <= 0).length;
+            const lowStockCard = document.getElementById('stat-low-stock').closest('.stat-card');
             const lowStockEl = document.getElementById('stat-low-stock');
-            lowStockEl.textContent = lowStockCount;
-            lowStockEl.style.color = lowStockCount > 0 ? 'var(--danger)' : 'var(--secondary)';
+            
+            // Apply animated badge and card class
+            if (lowStockCount > 0) {
+                lowStockCard.classList.add('stat-low-stock');
+                lowStockEl.innerHTML = `<span class="low-stock-badge badge-danger">${lowStockCount}</span>${outOfStockCount > 0 ? '<span class="low-stock-dot" title="' + outOfStockCount + ' out of stock"></span>' : ''}`;
+            } else {
+                lowStockCard.classList.remove('stat-low-stock');
+                lowStockEl.innerHTML = `<span class="low-stock-badge badge-success">0</span>`;
+            }
 
             // Monthly stock changes from history
             if (window.StockHistoryManager) {
@@ -66,14 +75,23 @@ const InvoiceManager = {
 
         list.forEach(inv => {
             const tr = document.createElement('tr');
+            
+            // Add class and data attributes for tooltip
+            tr.classList.add('invoice-history-row');
+            tr.dataset.invoiceDate = Utils.formatDate(inv.date);
+            tr.dataset.invoiceNumber = inv.number;
+            tr.dataset.invoiceCustomer = this.escapeHTML(inv.customer.name);
+            tr.dataset.invoiceTotal = Utils.formatCurrency(inv.grandTotal);
+            tr.dataset.invoiceItems = inv.items.length + ' item' + (inv.items.length !== 1 ? 's' : '');
+            
             tr.innerHTML = `
                 <td>${Utils.formatDate(inv.date)}</td>
                 <td>${inv.number}</td>
                 <td>${this.escapeHTML(inv.customer.name)}</td>
                 <td><strong>${Utils.formatCurrency(inv.grandTotal)}</strong></td>
                 <td>
-                    <button class="btn btn-outline btn-sm" onclick="InvoiceManager.viewInvoice('${inv.id}')">View</button>
-                    <button class="btn btn-danger btn-sm" onclick="InvoiceManager.deleteInvoice('${inv.id}')">Del</button>
+                    <button class="btn btn-outline btn-sm view-invoice-btn" onclick="InvoiceManager.viewInvoice('${inv.id}')">View</button>
+                    <button class="btn btn-danger btn-sm delete-invoice-btn" onclick="InvoiceManager.deleteInvoice('${inv.id}')">Del</button>
                 </td>
             `;
             tbody.appendChild(tr);

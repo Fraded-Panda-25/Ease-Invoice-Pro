@@ -176,7 +176,7 @@ body.sidebar-resizing {
     color: var(--text-muted);
     border-radius: var(--radius);
     font-weight: 500;
-    transition: var(--transition);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .nav-link:hover {
@@ -471,6 +471,144 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+    transition: background-color 0.3s ease;
+}
+
+.data-table tbody tr {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.data-table tbody tr:hover {
+    background-color: rgba(56, 189, 248, 0.05);
+    z-index: 1;
+    position: relative;
+}
+
+.data-table tbody tr:hover td {
+    background-color: transparent;
+}
+
+/* Inventory Tooltip */
+.inventory-tooltip {
+    position: fixed;
+    z-index: 10000;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.inventory-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* Tooltip Glow Effect */
+@keyframes glowPulse {
+    0%, 100% {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.35);
+    }
+    50% {
+        box-shadow: 0 0 28px 6px rgba(56, 189, 248, 0.5);
+    }
+}
+
+.tooltip-glow {
+    animation: glowPulse 1.5s ease-in-out infinite;
+    border-color: var(--primary) !important;
+}
+
+body.theme-light .tooltip-glow {
+    animation: glowPulseLight 1.5s ease-in-out infinite;
+}
+
+@keyframes glowPulseLight {
+    0%, 100% {
+        box-shadow: 0 0 20px 4px rgba(14, 165, 233, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 28px 6px rgba(14, 165, 233, 0.45);
+    }
+}
+
+body.theme-dark .tooltip-glow {
+    animation: glowPulseDark 1.5s ease-in-out infinite;
+}
+
+@keyframes glowPulseDark {
+    0%, 100% {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 28px 6px rgba(56, 189, 248, 0.55);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tooltip-glow {
+        animation: none;
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.35) !important;
+    }
+    body.theme-light .tooltip-glow {
+        box-shadow: 0 0 20px 4px rgba(14, 165, 233, 0.3) !important;
+    }
+    body.theme-dark .tooltip-glow {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.4) !important;
+    }
+}
+
+.inventory-tooltip .tooltip-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.inventory-tooltip .tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.25rem 0;
+    font-size: 0.85rem;
+}
+
+.inventory-tooltip .tooltip-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.inventory-tooltip .tooltip-value {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.inventory-tooltip .tooltip-value.highlight {
+    color: var(--primary);
+}
+
+.inventory-tooltip .tooltip-value.danger {
+    color: var(--danger);
+}
+
+.inventory-tooltip .tooltip-value.success {
+    color: var(--secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inventory-tooltip {
+        transition: opacity 0.1s ease;
+        transform: none;
+    }
 }
 
 /* Dashboard Stats Grid */
@@ -490,12 +628,16 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     flex-direction: column;
     gap: 0.25rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px -2px rgba(0, 0, 0, 0.1);
+.stat-card[data-action] {
+    cursor: pointer;
+    user-select: none;
+}
+
+.stat-card[data-action]:active {
+    transform: scale(0.97);
 }
 
 .stat-card .stat-label {
@@ -510,6 +652,117 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     font-size: 1.75rem;
     font-weight: 700;
     color: var(--text-main);
+    transition: color 0.3s ease;
+}
+
+/* Low Stock Badge Pulse Animation */
+.stat-card.stat-low-stock {
+    border-color: var(--danger);
+    animation: lowStockPulse 2s ease-in-out infinite;
+}
+
+@keyframes lowStockPulse {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 0 rgba(239, 68, 68, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+}
+
+body.theme-dark .stat-card.stat-low-stock {
+    animation: lowStockPulseDark 2s ease-in-out infinite;
+}
+
+@keyframes lowStockPulseDark {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 0 rgba(248, 113, 113, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 6px rgba(248, 113, 113, 0);
+    }
+}
+
+/* Low stock count badge */
+.low-stock-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1;
+    animation: badgeBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.low-stock-badge.badge-danger {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
+
+body.theme-dark .low-stock-badge.badge-danger {
+    background-color: rgba(248, 113, 113, 0.15);
+    color: var(--danger);
+}
+
+.low-stock-badge.badge-success {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: var(--secondary);
+}
+
+@keyframes badgeBounce {
+    0% { transform: scale(0.5); opacity: 0; }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Pulsing dot indicator for out-of-stock */
+.low-stock-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--danger);
+    margin-left: 6px;
+    vertical-align: middle;
+    animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stat-card.stat-low-stock {
+        animation: none;
+        border-color: var(--danger);
+    }
+    .low-stock-badge {
+        animation: none;
+    }
+    .low-stock-dot {
+        animation: none;
+    }
+}
+
+/* Low Stock Modal enhancements */
+.low-stock-row {
+    transition: background-color 0.2s ease;
+}
+.low-stock-row:hover {
+    background-color: rgba(239, 68, 68, 0.05);
+}
+body.theme-dark .low-stock-row:hover {
+    background-color: rgba(248, 113, 113, 0.08);
+}
+.low-stock-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 /* Invoice Specific */
