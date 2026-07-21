@@ -3,7 +3,7 @@ title: Customisable invoice prefix
 lane: todo
 created: 2026-07-19T10:20:40.652Z
 updated: 2026-07-19T11:26:37.776Z
-description: When user enters a customisable invoice prefix, the prefix is not changing from "NPHP-".
+description: Custom Invoice prefix is not working from settings. The invoice is automaticlally setted NPHP- to default.
 priority: high
 assignee: Pritam Paul
 labels:
@@ -16,5 +16,5 @@ slug: customisable_invoice_prefix
 
 ### user
 
-When user enters a customisable invoice prefix, the prefix is not changing from "NPHP-".
+Custom Invoice prefix is not working from settings. The invoice is automaticlally setted NPHP- to default.
 

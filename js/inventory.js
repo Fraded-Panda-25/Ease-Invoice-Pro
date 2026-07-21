@@ -22,16 +22,25 @@ const InventoryManager = {
                 document.getElementById('bulk-restock-panel').style.display = 'none';
             }
         });
+        // Close bulk restock confirm modal when clicking outside
+        document.getElementById('bulk-restock-confirm-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.style.display = 'none';
+                this._pendingBulkRestock = null;
+            }
+        });
         // Close modals, dropdowns on Escape key (single consolidated handler)
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.getElementById('stock-history-modal').style.display = 'none';
         document.getElementById('low-stock-modal').style.display = 'none';
+        document.getElementById('bulk-restock-confirm-modal').style.display = 'none';
         document.getElementById('btn-download-dropdown-menu').style.display = 'none';
         // Clean up restock state
         document.getElementById('inline-restock-panel').style.display = 'none';
         document.getElementById('inventory-restock-panel').style.display = 'none';
         this._restockProductId = null;
+        this._pendingBulkRestock = null;
         // Clean up bulk restock state
                 document.getElementById('bulk-restock-panel').style.display = 'none';
                 this._resetBulkSelection();
@@ -66,7 +75,9 @@ const InventoryManager = {
             
             // Stock logic
             const isLowStock = prod.stockQty <= prod.lowStockThreshold;
-            const stockBadgeClass = isLowStock ? 'badge badge-danger' : 'badge badge-success';
+            // Approaching low stock: above threshold but within 5 units
+            const isApproachingLow = !isLowStock && prod.lowStockThreshold > 0 && prod.stockQty <= prod.lowStockThreshold + 5;
+            const stockBadgeClass = isLowStock ? 'badge badge-danger' : (isApproachingLow ? 'badge badge-warning' : 'badge badge-success');
             
             // Add data attributes for tooltip
             tr.dataset.productName = this.escapeHTML(prod.name);
@@ -78,11 +89,15 @@ const InventoryManager = {
             tr.dataset.productDiscount = Utils.formatCurrency(prod.defaultDiscount || 0);
             tr.dataset.productThreshold = prod.lowStockThreshold;
             tr.classList.add('inventory-row');
+            if (isLowStock) tr.classList.add('inventory-row--low-stock');
+            else if (isApproachingLow) tr.classList.add('inventory-row--approaching-low-stock');
+            else tr.classList.add('inventory-row--enough-stock');
             
             tr.innerHTML = `
                 <td>
                     <strong>${this.escapeHTML(prod.name)}</strong>
                     ${isLowStock ? '<span style="color:var(--danger); font-size:0.75rem; display:block;">Low Stock</span>' : ''}
+                    ${isApproachingLow ? '<span style="color:var(--warning); font-size:0.75rem; display:block;">⚠ Approaching Low</span>' : ''}
                 </td>
                 <td>${this.escapeHTML(prod.company || '-')}</td>
                 <td>${this.escapeHTML(prod.sizeUnit || '-')}</td>
@@ -302,18 +317,29 @@ const InventoryManager = {
         }
     },
 
-    async _confirmInventoryRestock() {
-        const productId = this._restockProductId;
-        if (!productId) return;
-
+    /**
+     * Shared helper: apply a single-product restock (DB save + history log).
+     * @param {string} productId - The product ID.
+     * @param {string} [qtyInputId] - Optional DOM element ID to read qty from.
+     * @param {number} [qtyOverride] - Optional direct qty value (overrides DOM read).
+     * Returns { success: boolean, qty: number, prod: object|null }.
+     */
+    async _applySingleRestock(productId, qtyInputId, qtyOverride) {
         const prod = this.products.find(p => p.id === productId);
-        if (!prod) return;
+        if (!prod) return { success: false, qty: 0, prod: null };
 
-        const qtyInput = document.getElementById('inv-restock-qty-input');
-        const qty = parseInt(qtyInput.value, 10);
+        let qty;
+        if (qtyOverride !== undefined && !isNaN(qtyOverride)) {
+            qty = qtyOverride;
+        } else if (qtyInputId) {
+            const qtyInput = document.getElementById(qtyInputId);
+            qty = parseInt(qtyInput?.value, 10);
+        } else {
+            return { success: false, qty: 0, prod };
+        }
         if (isNaN(qty) || qty <= 0) {
             Utils.showToast('Enter a valid positive number.', 'error');
-            return;
+            return { success: false, qty: 0, prod };
         }
 
         try {
@@ -333,13 +359,23 @@ const InventoryManager = {
             }
 
             Utils.showToast(`Restocked +${qty} of "${prod.name}". Now ${prod.stockQty} in stock.`, 'success');
-
-            document.getElementById('inventory-restock-panel').style.display = 'none';
-            this._restockProductId = null;
-            await this.loadInventory();
+            return { success: true, qty, prod };
         } catch (e) {
             console.error('Failed to restock:', e);
             Utils.showToast('Failed to restock product.', 'error');
+            return { success: false, qty: 0, prod };
+        }
+    },
+
+    async _confirmInventoryRestock() {
+        const productId = this._restockProductId;
+        if (!productId) return;
+
+        const result = await this._applySingleRestock(productId, 'inv-restock-qty-input');
+        if (result.success) {
+            document.getElementById('inventory-restock-panel').style.display = 'none';
+            this._restockProductId = null;
+            await this.loadInventory();
         }
     },
 
@@ -385,7 +421,7 @@ const InventoryManager = {
             const tbody = document.getElementById('low-stock-body');
             const countEl = document.getElementById('low-stock-count');
             
-            countEl.textContent = lowStockProducts.length;
+            titleEl.innerHTML = '⚠️ Low Stock Items <span id="low-stock-count" class="badge badge-danger" style="font-size:0.8rem; margin-left:0.5rem;">' + lowStockProducts.length + '</span>';
             tbody.innerHTML = '';
             
             // Reset bulk selection
@@ -593,6 +629,82 @@ const InventoryManager = {
             return;
         }
 
+        // Store parameters for confirmation
+        this._pendingBulkRestock = { ids, qty };
+        this._showBulkRestockConfirm(ids, qty);
+    },
+
+    _showBulkRestockConfirm(ids, qty) {
+        const modal = document.getElementById('bulk-restock-confirm-modal');
+        const summaryEl = document.getElementById('bulk-restock-confirm-summary');
+
+        // Compute totals
+        const products = ids.map(id => this.products.find(p => p.id === id)).filter(Boolean);
+        const totalUnits = qty * products.length;
+        let totalCost = 0;
+        products.forEach(p => {
+            const price = p.unitPrice || 0;
+            totalCost += price * qty;
+        });
+
+        // Build product chips HTML
+        const productChips = products.map(p => {
+            const price = p.unitPrice || 0;
+            const cost = price * qty;
+            return `<span class="bulk-restock-confirm-product-chip">
+                ${this.escapeHTML(p.name)}
+                <span class="chip-price">(${qty}×${Utils.formatCurrency(price)} = ${Utils.formatCurrency(cost)})</span>
+            </span>`;
+        }).join('');
+
+        summaryEl.innerHTML = `
+            <div class="bulk-restock-confirm-section">
+                <div class="confirm-section-title">📋 Summary</div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Products to restock</span>
+                    <span class="confirm-value">${products.length}</span>
+                </div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Quantity per product</span>
+                    <span class="confirm-value">+${qty} units</span>
+                </div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Total units to add</span>
+                    <span class="confirm-value">${totalUnits}</span>
+                </div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Estimated total cost</span>
+                    <span class="confirm-value total-cost">${Utils.formatCurrency(totalCost)}</span>
+                </div>
+            </div>
+            <div class="bulk-restock-confirm-section">
+                <div class="confirm-section-title">📦 Products</div>
+                <div class="bulk-restock-confirm-product-list">
+                    ${productChips}
+                </div>
+            </div>
+        `;
+
+        // Bind the execute button (only once)
+        if (!this._bulkConfirmExecBound) {
+            document.getElementById('btn-confirm-bulk-restock-execute').addEventListener('click', () => {
+                this._executeBulkRestock();
+            });
+            this._bulkConfirmExecBound = true;
+        }
+
+        modal.style.display = 'flex';
+    },
+
+    async _executeBulkRestock() {
+        if (!this._pendingBulkRestock) return;
+
+        const { ids, qty } = this._pendingBulkRestock;
+        this._pendingBulkRestock = null;
+
+        // Close the confirmation modal
+        document.getElementById('bulk-restock-confirm-modal').style.display = 'none';
+
         let restockedCount = 0;
         const errors = [];
 
@@ -721,42 +833,75 @@ const InventoryManager = {
         const productId = this._restockProductId;
         if (!productId) return;
 
-        const prod = this.products.find(p => p.id === productId);
-        if (!prod) return;
-
-        const qtyInput = document.getElementById('restock-qty-input');
-        const qty = parseInt(qtyInput.value, 10);
-        if (isNaN(qty) || qty <= 0) {
-            Utils.showToast('Enter a valid positive number.', 'error');
-            return;
-        }
-
-        try {
-            prod.stockQty += qty;
-            await window.appDB.put('products', prod);
-
-            if (window.StockHistoryManager) {
-                window.StockHistoryManager.addEntry({
-                    productId: prod.id,
-                    productName: prod.name,
-                    change: qty,
-                    remaining: prod.stockQty,
-                    date: new Date().toISOString().split('T')[0],
-                    invoiceNumber: '',
-                    type: 'restock'
-                });
-            }
-
-            Utils.showToast(`Restocked +${qty} of "${prod.name}". Now ${prod.stockQty} in stock.`, 'success');
-
-            // Hide inline panel and refresh low stock list
+        const result = await this._applySingleRestock(productId, 'restock-qty-input');
+        if (result.success) {
             document.getElementById('inline-restock-panel').style.display = 'none';
             this._restockProductId = null;
             await this.loadInventory();
             this.showLowStockItems();
+        }
+    },
+
+    async showApproachingLowItems() {
+        try {
+            // Ensure inventory data is fresh
+            await this.loadInventory();
+            const approachingProducts = this.products.filter(p => {
+                const isLow = p.stockQty <= p.lowStockThreshold;
+                return !isLow && p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold + 5;
+            });
+            
+            // Reuse the low-stock modal but change the title and content
+            const modal = document.getElementById('low-stock-modal');
+            const titleEl = modal.querySelector('.modal-title');
+            const tbody = document.getElementById('low-stock-body');
+            const countEl = document.getElementById('low-stock-count');
+            
+            // Change title to indicate approaching-low mode
+            titleEl.innerHTML = '🟡 Approaching Low Stock <span id="low-stock-count" class="badge badge-warning" style="font-size:0.8rem; margin-left:0.5rem;">' + approachingProducts.length + '</span>';
+            
+            tbody.innerHTML = '';
+            
+            // Reset bulk selection
+            this._bulkSelectedIds = [];
+            document.getElementById('bulk-restock-panel').style.display = 'none';
+            const selectAllCb = document.getElementById('bulk-select-all');
+            if (selectAllCb) selectAllCb.checked = false;
+            
+            if (approachingProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">✅ No approaching low items! Stock levels are healthy.</td></tr>';
+            } else {
+                approachingProducts.forEach(prod => {
+                    const tr = document.createElement('tr');
+                    tr.classList.add('low-stock-row');
+                    tr.dataset.productId = prod.id;
+                    
+                    const badgeClass = 'badge badge-warning';
+                    const statusText = `${prod.stockQty} / ${prod.lowStockThreshold}`;
+                    
+                    tr.innerHTML = `
+                        <td><input type="checkbox" class="low-stock-checkbox" data-id="${prod.id}" title="Select for bulk restock"></td>
+                        <td><strong>${this.escapeHTML(prod.name)}</strong></td>
+                        <td>${this.escapeHTML(prod.company || '-')}</td>
+                        <td>${Utils.formatCurrency(prod.unitPrice)}</td>
+                        <td><span class="${badgeClass}">${statusText}</span></td>
+                        <td>
+                            <div class="low-stock-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="InventoryManager.restockFromLowStock('${prod.id}')">+ Restock</button>
+                                <button class="btn btn-outline btn-sm" onclick="InventoryManager.editFromLowStock('${prod.id}')">Edit</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                this._bindBulkCheckboxes();
+            }
+            
+            modal.style.display = 'flex';
         } catch (e) {
-            console.error('Failed to restock:', e);
-            Utils.showToast('Failed to restock product.', 'error');
+            console.error('Failed to load approaching low items:', e);
+            Utils.showToast('Failed to load approaching low items', 'error');
         }
     },
 
@@ -837,9 +982,11 @@ const InventoryManager = {
             </thead>
             <tbody>`;
         pageEntries.forEach(e => {
-            const changeClass = e.change < 0 ? 'text-error' : 'text-success';
+            const isSold = e.change < 0;
+            const changeClass = isSold ? 'text-error' : 'text-success';
+            const rowClass = isSold ? 'history-row--sold' : 'history-row--restocked';
             const changeSign = e.change > 0 ? '+' : '';
-            html += `<tr>
+            html += `<tr class="${rowClass}">
                 ${showProduct ? `<td><strong>${this.escapeHTML(e.productName || '—')}</strong></td>` : ''}
                 <td>${Utils.formatDate(e.date)}</td>
                 <td class="${changeClass}"><strong>${changeSign}${e.change}</strong></td>

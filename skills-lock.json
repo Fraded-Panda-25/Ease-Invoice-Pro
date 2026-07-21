@@ -13,6 +13,12 @@
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "93f53fd1c0352d3d7ec17b8f73d7351bf76f4821e55d123c9d2abc2c53ba48e4"
     },
+    "fusion-framework-feature-toggling": {
+      "source": "equinor/fusion-skills",
+      "sourceType": "github",
+      "skillPath": "skills/.deprecated/fusion-framework-feature-toggling/SKILL.md",
+      "computedHash": "a4a83d5ce8b8d326cf4647672e7321847943406f69ecdb6c7c16d6b3202fb5cf"
+    },
     "premium-frontend-ui": {
       "source": "github/awesome-copilot",
       "sourceType": "github",

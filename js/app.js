@@ -26,6 +26,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Setup Tooltips (inventory + invoice history + sidebar buttons)
         setupTooltips();
 
+        // Setup Glow Intensity & Pulsing Border Settings
+        setupPulsingBorderToggle();
+        setupPulsingBorderSpeed();
+        setupGlowSettings();
+        setupResetSettings();
+
         // Setup Dock Effect (3D magnification)
         setupDockEffect();
 
@@ -410,6 +416,23 @@ function setupTooltips() {
                     <span class="tooltip-value">Click Inventory to restock</span>
                 </div>
             `;
+        } else if (label.includes('⚠ Approaching Low Stock')) {
+            const count = parseInt(value, 10);
+            content = `
+                <div class="tooltip-title">🟡 Approaching Low Stock</div>
+                <div class="tooltip-row">
+                    <span class="tooltip-label">Items Near Threshold</span>
+                    <span class="tooltip-value ${count > 0 ? 'warning' : 'success'}">${value}</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-label">Range</span>
+                    <span class="tooltip-value">Within 5 units of threshold</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-label">Tip</span>
+                    <span class="tooltip-value">Restock before they run low</span>
+                </div>
+            `;
         } else {
             content = `<div class="tooltip-title" style="border:none; margin:0; padding:0;">${label}: ${value}</div>`;
         }
@@ -499,9 +522,35 @@ function setupDashboardStatCards() {
                 if (window.InventoryManager) {
                     window.InventoryManager.showLowStockItems();
                 }
+            } else if (action === 'approaching-low-stock') {
+                // Open Approaching Low Stock items modal
+                if (window.InventoryManager) {
+                    window.InventoryManager.showApproachingLowItems();
+                }
             }
         });
     });
+}
+
+/**
+ * Convert a CSS color string to rgba() with the given alpha.
+ * Handles hex (#fff, #ffffff) and functional (rgb(), hsl()) formats.
+ */
+function colorWithAlpha(color, alpha) {
+    const trimmed = color.trim();
+    if (trimmed.startsWith('#')) {
+        let hex = trimmed.slice(1);
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return trimmed;
+    }
+    // For rgb(), hsl(), etc. — insert alpha before the closing paren
+    return trimmed.replace(')', `, ${alpha})`);
 }
 
 function setupDockEffect() {
@@ -521,6 +570,11 @@ function setupDockEffect() {
                 const containerRect = container.getBoundingClientRect();
                 const mouseX = e.clientX - containerRect.left;
                 
+                // Read theme colors fresh on every frame — handles theme toggles
+                const rootStyle = getComputedStyle(document.documentElement);
+                const dangerColor = rootStyle.getPropertyValue('--danger').trim() || '#f87171';
+                const primaryColor = rootStyle.getPropertyValue('--primary').trim() || '#38bdf8';
+
                 items.forEach(item => {
                     const itemRect = item.getBoundingClientRect();
                     const itemCenter = itemRect.left - containerRect.left + itemRect.width / 2;
@@ -531,7 +585,29 @@ function setupDockEffect() {
                         const translateY = -((maxScale - 1) * 20) * (1 - distance / range);
                         const rotateX = 8 * (1 - distance / range);
                         item.style.transform = `translateY(${translateY}px) scale(${scale}) rotateX(${rotateX}deg)`;
-                        item.style.boxShadow = `0 ${12 * (1 - distance / range)}px ${24 * (1 - distance / range)}px -4px rgba(56, 189, 248, ${0.25 * (1 - distance / range)})`;
+                        
+                        // Determine glow color and opacity based on stock status
+                        const isLowStock = item.classList.contains('inventory-row--low-stock') || item.classList.contains('stat-low-stock') || item.classList.contains('invoice-row--low-stock');
+                        const isApproachingLow = item.classList.contains('inventory-row--approaching-low-stock') || item.classList.contains('stat-approaching-low-stock');
+                        const warningColor = rootStyle.getPropertyValue('--warning').trim() || '#f59e0b';
+                        let glowColor, opacity;
+                        if (isLowStock) {
+                            glowColor = dangerColor;
+                            opacity = _glowLowStockOpacity;
+                        } else if (isApproachingLow) {
+                            glowColor = warningColor;
+                            opacity = _glowApproachingOpacity;
+                        } else {
+                            glowColor = primaryColor;
+                            opacity = _glowNormalOpacity;
+                        }
+                        // Skip glow if opacity is 0
+                        if (opacity <= 0) {
+                            item.style.boxShadow = '';
+                        } else {
+                            const shadowIntensity = 1 - distance / range;
+                            item.style.boxShadow = `0 ${12 * shadowIntensity}px ${24 * shadowIntensity}px -4px ${colorWithAlpha(glowColor, opacity * shadowIntensity)}`;
+                        }
                     } else {
                         item.style.transform = '';
                         item.style.boxShadow = '';
@@ -578,6 +654,145 @@ function setupDockEffect() {
             sidebarToggle.style.boxShadow = '';
         });
     }
+}
+
+// Cached glow intensities (avoids localStorage reads on every mousemove)
+let _glowNormalOpacity = 0.25;
+let _glowLowStockOpacity = 0.35;
+let _glowApproachingOpacity = 0.30;
+
+function setupPulsingBorderToggle() {
+    const toggle = document.getElementById('toggle-pulsing-border');
+    if (!toggle) return;
+
+    // Restore saved state
+    const saved = localStorage.getItem('pulsingBorderEnabled');
+    const enabled = saved !== null ? saved === 'true' : true;
+    toggle.checked = enabled;
+    document.body.classList.toggle('pulsing-border-off', !enabled);
+
+    // Save on change
+    toggle.addEventListener('change', () => {
+        localStorage.setItem('pulsingBorderEnabled', toggle.checked);
+        document.body.classList.toggle('pulsing-border-off', !toggle.checked);
+    });
+}
+
+function setupPulsingBorderSpeed() {
+    const radios = document.querySelectorAll('input[name="pulsing-speed"]');
+    if (!radios.length) return;
+
+    // Speed values map
+    const speedMap = { slow: '4s', normal: '2.5s', fast: '1.2s' };
+
+    // Restore saved speed
+    const saved = localStorage.getItem('pulsingBorderSpeed') || 'normal';
+    const radioToCheck = document.getElementById('speed-' + saved);
+    if (radioToCheck) {
+        radioToCheck.checked = true;
+        document.documentElement.style.setProperty('--pulsing-border-speed', speedMap[saved] || '2.5s');
+    }
+
+    // Save on change
+    radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (!radio.checked) return;
+            const val = radio.value;
+            localStorage.setItem('pulsingBorderSpeed', val);
+            document.documentElement.style.setProperty('--pulsing-border-speed', speedMap[val] || '2.5s');
+        });
+    });
+}
+
+function setupGlowSettings() {
+    const normalSlider = document.getElementById('glow-normal-intensity');
+    const lowStockSlider = document.getElementById('glow-lowstock-intensity');
+    const normalValue = document.getElementById('glow-normal-value');
+    const lowStockValue = document.getElementById('glow-lowstock-value');
+
+    // Restore saved values from localStorage
+    const savedNormal = localStorage.getItem('glowNormalIntensity');
+    const savedLowStock = localStorage.getItem('glowLowStockIntensity');
+    if (savedNormal !== null && normalSlider) {
+        normalSlider.value = savedNormal;
+        _glowNormalOpacity = parseInt(savedNormal, 10) / 100;
+    }
+    if (savedLowStock !== null && lowStockSlider) {
+        lowStockSlider.value = savedLowStock;
+        _glowLowStockOpacity = parseInt(savedLowStock, 10) / 100;
+    }
+    if (normalValue) normalValue.textContent = (normalSlider ? normalSlider.value : 25) + '%';
+    if (lowStockValue) lowStockValue.textContent = (lowStockSlider ? lowStockSlider.value : 35) + '%';
+
+    // Save on change and update cache
+    if (normalSlider) {
+        normalSlider.addEventListener('input', () => {
+            const val = normalSlider.value;
+            localStorage.setItem('glowNormalIntensity', val);
+            _glowNormalOpacity = parseInt(val, 10) / 100;
+            if (normalValue) normalValue.textContent = val + '%';
+        });
+    }
+    if (lowStockSlider) {
+        lowStockSlider.addEventListener('input', () => {
+            const val = lowStockSlider.value;
+            localStorage.setItem('glowLowStockIntensity', val);
+            _glowLowStockOpacity = parseInt(val, 10) / 100;
+            if (lowStockValue) lowStockValue.textContent = val + '%';
+        });
+    }
+}
+
+function setupResetSettings() {
+    const btn = document.getElementById('btn-reset-visual-settings');
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+        // Remove all visual-preference localStorage keys
+        localStorage.removeItem('glowNormalIntensity');
+        localStorage.removeItem('glowLowStockIntensity');
+        localStorage.removeItem('pulsingBorderEnabled');
+        localStorage.removeItem('pulsingBorderSpeed');
+        localStorage.removeItem('theme');
+
+        // Reset cached glow opacities
+        _glowNormalOpacity = 0.25;
+        _glowLowStockOpacity = 0.35;
+        _glowApproachingOpacity = 0.30;
+
+        // Reset glow sliders and value labels
+        const normalSlider = document.getElementById('glow-normal-intensity');
+        const lowStockSlider = document.getElementById('glow-lowstock-intensity');
+        const normalValue = document.getElementById('glow-normal-value');
+        const lowStockValue = document.getElementById('glow-lowstock-value');
+        if (normalSlider) { normalSlider.value = '25'; }
+        if (lowStockSlider) { lowStockSlider.value = '35'; }
+        if (normalValue) { normalValue.textContent = '25%'; }
+        if (lowStockValue) { lowStockValue.textContent = '35%'; }
+
+        // Reset pulsing border toggle to ON
+        const toggle = document.getElementById('toggle-pulsing-border');
+        if (toggle) {
+            toggle.checked = true;
+            document.body.classList.remove('pulsing-border-off');
+        }
+
+        // Reset pulsing border speed to Normal
+        const normalRadio = document.getElementById('speed-normal');
+        if (normalRadio) {
+            normalRadio.checked = true;
+            document.documentElement.style.setProperty('--pulsing-border-speed', '2.5s');
+        }
+
+        // Reset theme to dark
+        document.body.className = 'theme-dark';
+        const lightIcon = document.querySelector('#theme-toggle .light-icon');
+        const darkIcon = document.querySelector('#theme-toggle .dark-icon');
+        if (lightIcon) lightIcon.style.display = 'none';
+        if (darkIcon) darkIcon.style.display = 'inline';
+
+        Utils.showToast('✅ All visual settings reset to defaults', 'success');
+    });
 }
 
 function setupSidebarResizer() {

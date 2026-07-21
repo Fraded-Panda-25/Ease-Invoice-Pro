@@ -76,6 +76,7 @@
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
             Inventory
+            <span class="nav-low-stock-dot" style="display:none;" title="Low stock products"></span>
           </a>
           <a href="#settings" class="nav-link" data-target="view-settings">
             <svg
@@ -260,6 +261,10 @@
                 <span class="stat-label">Low Stock Items</span>
                 <span class="stat-value" id="stat-low-stock">—</span>
               </div>
+              <div class="stat-card" data-action="approaching-low-stock">
+                <span class="stat-label">⚠ Approaching Low Stock</span>
+                <span class="stat-value" id="stat-approaching-low">—</span>
+              </div>
             </div>
 
             <!-- Invoice History List -->
@@ -407,6 +412,22 @@
               <button class="btn btn-outline btn-sm" onclick="InventoryManager.showAllHistory()">📋 Full History</button>
             </div>
 
+            <div class="inventory-color-legend">
+              <span class="legend-label">Border Colors:</span>
+              <span class="legend-item legend-item--danger">
+                <span class="legend-swatch"></span>
+                Low Stock
+              </span>
+              <span class="legend-item legend-item--warning">
+                <span class="legend-swatch"></span>
+                Approaching Low
+              </span>
+              <span class="legend-item legend-item--primary">
+                <span class="legend-swatch"></span>
+                Sufficient Stock
+              </span>
+            </div>
+
             <div class="table-responsive">
               <table class="data-table" id="inventory-table">
                 <thead>
@@ -481,6 +502,51 @@
                   Save Profile
                 </button>
               </form>
+            </div>
+
+            <div class="card">
+              <h3 class="section-title">✨ Hover Effects</h3>
+              <p class="text-muted" style="margin-bottom:1rem;">
+                Adjust the glow intensity when hovering over items.
+              </p>
+              <div class="form-group">
+                <label class="glow-intensity-label">
+                  <span>Normal items (blue glow)</span>
+                  <span class="glow-intensity-value" id="glow-normal-value">25%</span>
+                </label>
+                <input type="range" id="glow-normal-intensity" class="glow-intensity-slider" min="0" max="100" value="25">
+              </div>
+              <div class="form-group">
+                <label class="glow-intensity-label">
+                  <span>Low-stock items (red glow)</span>
+                  <span class="glow-intensity-value" id="glow-lowstock-value">35%</span>
+                </label>
+                <input type="range" id="glow-lowstock-intensity" class="glow-intensity-slider" min="0" max="100" value="35">
+              </div>
+              <p class="text-muted" style="font-size:0.8rem; margin-top:0.5rem;">
+                💡 Set to 0% to disable the glow effect.
+              </p>
+              <div class="form-group" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+                <label class="toggle-label">
+                  <input type="checkbox" id="toggle-pulsing-border" checked>
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-text">Show pulsing border on low-stock items</span>
+                </label>
+              </div>
+              <div class="form-group" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+                <label style="font-size:0.85rem; font-weight:500; color:var(--text-muted); display:block; margin-bottom:0.5rem;">Pulsing border speed</label>
+                <div class="speed-picker" id="pulsing-speed-picker">
+                  <input type="radio" name="pulsing-speed" id="speed-slow" value="slow">
+                  <label for="speed-slow" class="speed-picker-label">🐢 Slow</label>
+                  <input type="radio" name="pulsing-speed" id="speed-normal" value="normal">
+                  <label for="speed-normal" class="speed-picker-label">▶ Normal</label>
+                  <input type="radio" name="pulsing-speed" id="speed-fast" value="fast">
+                  <label for="speed-fast" class="speed-picker-label">🐇 Fast</label>
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border-color); text-align:center;">
+                <button class="btn btn-outline btn-sm" id="btn-reset-visual-settings" style="width:100%;">↺ Reset all settings to defaults</button>
+              </div>
             </div>
 
             <div class="card">
@@ -687,6 +753,25 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="document.getElementById('low-stock-modal').style.display='none'; InventoryManager._resetBulkSelection(); document.getElementById('bulk-restock-panel').style.display='none';">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Restock Confirmation Modal -->
+    <div id="bulk-restock-confirm-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-card" style="max-width:600px;">
+        <div class="modal-header">
+          <h3 class="modal-title">📦 Confirm Bulk Restock</h3>
+          <button class="btn btn-sm btn-outline modal-close-btn" onclick="document.getElementById('bulk-restock-confirm-modal').style.display='none'; InventoryManager._pendingBulkRestock = null;">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="bulk-restock-confirm-summary">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="document.getElementById('bulk-restock-confirm-modal').style.display='none'; InventoryManager._pendingBulkRestock = null;">Cancel</button>
+          <button class="btn btn-primary" id="btn-confirm-bulk-restock-execute">✅ Confirm & Execute</button>
         </div>
       </div>
     </div>

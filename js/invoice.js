@@ -21,13 +21,36 @@ const InvoiceManager = {
             const lowStockCard = document.getElementById('stat-low-stock').closest('.stat-card');
             const lowStockEl = document.getElementById('stat-low-stock');
             
+            // Approaching low stock count (above threshold but within 5 units)
+            const approachingLowCount = products.filter(p => {
+                const isLow = p.stockQty <= p.lowStockThreshold;
+                return !isLow && p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold + 5;
+            }).length;
+            const approachingLowCard = document.getElementById('stat-approaching-low')?.closest('.stat-card');
+            const approachingLowEl = document.getElementById('stat-approaching-low');
+            
+            if (approachingLowEl) {
+                if (approachingLowCount > 0) {
+                    approachingLowEl.innerHTML = `<span class="low-stock-badge badge-warning">${approachingLowCount}</span>`;
+                    if (approachingLowCard) approachingLowCard.classList.add('stat-approaching-low-stock');
+                } else {
+                    approachingLowEl.innerHTML = `<span class="low-stock-badge badge-success">0</span>`;
+                    if (approachingLowCard) approachingLowCard.classList.remove('stat-approaching-low-stock');
+                }
+            }
+            
             // Apply animated badge and card class
+            // Sidebar nav low-stock indicator dot
+            const navDot = document.querySelector('.nav-low-stock-dot');
+            
             if (lowStockCount > 0) {
                 lowStockCard.classList.add('stat-low-stock');
                 lowStockEl.innerHTML = `<span class="low-stock-badge badge-danger">${lowStockCount}</span>${outOfStockCount > 0 ? '<span class="low-stock-dot" title="' + outOfStockCount + ' out of stock"></span>' : ''}`;
+                if (navDot) { navDot.style.display = 'inline-block'; navDot.title = lowStockCount + ' low stock product' + (lowStockCount !== 1 ? 's' : ''); }
             } else {
                 lowStockCard.classList.remove('stat-low-stock');
                 lowStockEl.innerHTML = `<span class="low-stock-badge badge-success">0</span>`;
+                if (navDot) { navDot.style.display = 'none'; }
             }
 
             // Monthly stock changes from history
@@ -195,7 +218,10 @@ const InvoiceManager = {
             <td data-label="Company"><input type="text" class="form-control item-company" placeholder="—" readonly tabindex="-1"></td>
             <td data-label="Variant"><input type="text" class="form-control item-variant" placeholder="—" readonly tabindex="-1"></td>
             <td data-label="Qty"><input type="number" class="form-control item-qty" value="1" min="1"></td>
-            <td data-label="Stock at Billing" class="item-stock-billing">—</td>
+            <td data-label="Stock at Billing" class="item-stock-billing">
+                <span class="stock-value">—</span>
+                <div class="row-low-stock-warning" style="display:none;"></div>
+            </td>
             <td data-label="Price (₹)"><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
             <td data-label="GST %"><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
             <td data-label="Discount (₹)"><input type="number" class="form-control item-discount" value="0" step="0.01" readonly tabindex="-1"></td>
@@ -319,6 +345,8 @@ const InvoiceManager = {
                             this.calculateTotals();
                             // Check stock warning immediately with the default qty of 1
                             await this.checkRowStock(row);
+                            // Also check low stock status
+                            await this._updateRowLowStockIndicator(row);
                             // Move focus to qty so user can set quantity next
                             qtyInput.focus();
                             qtyInput.select();
@@ -441,6 +469,169 @@ const InvoiceManager = {
         }
     },
 
+    async _updateRowLowStockIndicator(row) {
+        const productId = row.querySelector('.item-product-id').value;
+        const warningEl = row.querySelector('.row-low-stock-warning');
+        if (!productId || !warningEl) {
+            if (warningEl) { warningEl.style.display = 'none'; warningEl.innerHTML = ''; }
+            return;
+        }
+
+        const product = await window.appDB.get('products', productId);
+        if (!product) {
+            warningEl.style.display = 'none';
+            warningEl.innerHTML = '';
+            return;
+        }
+
+        const isLow = product.stockQty <= product.lowStockThreshold;
+        
+        // Add/remove low-stock / enough-stock classes on the row itself
+        row.classList.toggle('invoice-row--low-stock', isLow);
+        row.classList.toggle('invoice-row--enough-stock', !isLow && product.stockQty > product.lowStockThreshold);
+
+        if (isLow) {
+            const qtyInput = row.querySelector('.item-qty');
+            const requestedQty = parseFloat(qtyInput?.value) || 1;
+            const isInsufficient = requestedQty > product.stockQty;
+            const status = product.stockQty <= 0 ? 'Out of Stock' : 'Low Stock';
+            const statusClass = product.stockQty <= 0 ? 'text-error' : 'text-warning';
+
+            warningEl.innerHTML = `
+                <div class="low-stock-indicator">
+                    <span class="low-stock-icon ${statusClass}">⚠️</span>
+                    <span class="low-stock-msg ${statusClass}">
+                        <strong>${status}:</strong> ${product.stockQty} remaining (threshold: ${product.lowStockThreshold})
+                    </span>
+                    <button class="btn-restock-inline btn btn-outline btn-sm">+ Restock</button>
+                    <div class="quick-restock-panel" style="display:none;">
+                        <div class="quick-restock-row">
+                            <input type="number" class="quick-restock-qty form-control" value="10" min="1" style="width:60px;padding:0.3rem;">
+                            <div class="restock-presets" style="display:inline-flex;gap:0.25rem;">
+                                <button class="restock-preset-btn" data-qty="5">+5</button>
+                                <button class="restock-preset-btn" data-qty="10">+10</button>
+                                <button class="restock-preset-btn" data-qty="25">+25</button>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-confirm-quick-restock" title="Confirm Restock">✓</button>
+                            <button class="btn btn-outline btn-sm btn-cancel-quick-restock" title="Cancel">✕</button>
+                        </div>
+                        <div class="quick-restock-preview" style="font-size:0.75rem;color:var(--secondary);margin-top:0.25rem;"></div>
+                    </div>
+                </div>
+            `;
+            warningEl.style.display = 'block';
+
+            // Bind events on the newly created elements
+            this._bindQuickRestockEvents(row, warningEl, product);
+        } else {
+            warningEl.style.display = 'none';
+            warningEl.innerHTML = '';
+        }
+    },
+
+    _bindQuickRestockEvents(row, warningEl, product) {
+        const restockBtn = warningEl.querySelector('.btn-restock-inline');
+        const panel = warningEl.querySelector('.quick-restock-panel');
+        const qtyInput = warningEl.querySelector('.quick-restock-qty');
+        const confirmBtn = warningEl.querySelector('.btn-confirm-quick-restock');
+        const cancelBtn = warningEl.querySelector('.btn-cancel-quick-restock');
+        const previewEl = warningEl.querySelector('.quick-restock-preview');
+
+        if (!restockBtn || !panel) return;
+
+        // Toggle the restock panel
+        const showPanel = (show) => {
+            panel.style.display = show ? 'block' : 'none';
+            if (show) {
+                qtyInput.focus();
+                qtyInput.select();
+                this._updateQuickRestockPreview(qtyInput, previewEl);
+            }
+        };
+
+        // Elements are brand new from innerHTML, so addEventListener is safe
+        restockBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPanel(true);
+        });
+
+        cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPanel(false);
+        });
+
+        // Preset buttons
+        panel.querySelectorAll('.restock-preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const qty = parseInt(btn.dataset.qty, 10);
+                if (!isNaN(qty) && qty > 0) {
+                    qtyInput.value = qty;
+                    this._updateQuickRestockPreview(qtyInput, previewEl);
+                }
+            });
+        });
+
+        // Manual input preview
+        qtyInput.addEventListener('input', () => {
+            this._updateQuickRestockPreview(qtyInput, previewEl);
+        });
+
+        // Enter key to confirm
+        qtyInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this._confirmQuickRestock(row, product, qtyInput, panel, previewEl);
+            }
+        });
+
+        // Confirm button
+        confirmBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._confirmQuickRestock(row, product, qtyInput, panel, previewEl);
+        });
+    },
+
+    _updateQuickRestockPreview(qtyInput, previewEl) {
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            previewEl.textContent = '';
+            return;
+        }
+        previewEl.textContent = `Will add +${qty} units`;
+    },
+
+    async _confirmQuickRestock(row, product, qtyInput, panel, previewEl) {
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            Utils.showToast('Enter a valid positive number.', 'error');
+            return;
+        }
+
+        // Call the shared InventoryManager helper
+        const result = await window.InventoryManager._applySingleRestock(product.id, null, qty);
+        
+        if (result.success) {
+            panel.style.display = 'none';
+            // Refresh the row's stock cell — product.stockQty is stale, so compute new value
+            const stockCell = row.querySelector('.item-stock-billing .stock-value');
+            const newStock = result.prod ? result.prod.stockQty : (product.stockQty + qty);
+            if (stockCell) {
+                stockCell.textContent = newStock;
+            }
+            // Update the passed-in product object for subsequent indicator calls
+            product.stockQty = newStock;
+            // Re-check indicators (checkRowStock handles display, then low stock check)
+            await this.checkRowStock(row);
+            await this._updateRowLowStockIndicator(row);
+            // Refresh dashboard stats & inventory
+            await this.renderDashboardStats();
+            if (window.InventoryManager) {
+                window.InventoryManager.loadInventory();
+            }
+            Utils.showToast(`Restocked +${qty} of "${product.name}"`, 'success');
+        }
+    },
+
     _clearRowWarnings(row) {
         // Cancel any pending debounced toast for this row
         if (this._stockToastTimers[row.id]) {
@@ -455,6 +646,11 @@ const InvoiceManager = {
         if (qtyInput) qtyInput.style.borderColor = '';
         // Remove row highlight
         row.classList.remove('row-stock-warning');
+        // Clear low stock indicator and remove class for hover glow
+        const lowStockEl = row.querySelector('.row-low-stock-warning');
+        if (lowStockEl) { lowStockEl.style.display = 'none'; lowStockEl.innerHTML = ''; }
+        row.classList.remove('invoice-row--low-stock');
+        row.classList.remove('invoice-row--enough-stock');
     },
 
     calculateRowTotal(row) {
