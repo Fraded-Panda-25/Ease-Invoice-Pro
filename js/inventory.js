@@ -418,6 +418,7 @@ const InventoryManager = {
             const lowStockProducts = this.products.filter(p => p.stockQty <= p.lowStockThreshold);
             
             const modal = document.getElementById('low-stock-modal');
+            const titleEl = modal.querySelector('.modal-title');
             const tbody = document.getElementById('low-stock-body');
             const countEl = document.getElementById('low-stock-count');
             

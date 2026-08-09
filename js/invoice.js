@@ -114,6 +114,7 @@ const InvoiceManager = {
                 <td><strong>${Utils.formatCurrency(inv.grandTotal)}</strong></td>
                 <td>
                     <button class="btn btn-outline btn-sm view-invoice-btn" onclick="InvoiceManager.viewInvoice('${inv.id}')">View</button>
+                    <button class="btn btn-outline btn-sm print-invoice-btn" onclick="InvoiceManager.printSavedInvoice('${inv.id}')">Print</button>
                     <button class="btn btn-danger btn-sm delete-invoice-btn" onclick="InvoiceManager.deleteInvoice('${inv.id}')">Del</button>
                 </td>
             `;
@@ -149,10 +150,9 @@ const InvoiceManager = {
             this.saveInvoice();
         });
 
-        // Print Invoice
+        // Print Invoice in a new tab
         document.getElementById('btn-print-invoice').addEventListener('click', () => {
-            this.preparePrint();
-            window.print();
+            this.printInvoiceInNewTab();
         });
 
         // Autocomplete click outside to close
@@ -965,19 +965,366 @@ const InvoiceManager = {
         }
     },
 
-    preparePrint() {
-        // Populate the print-only header with profile details
-        const header = document.getElementById('print-header');
-        const p = window.ProfileManager.profileData;
+    printSavedInvoice(id) {
+        const inv = this.invoices.find(i => i.id === id);
+        if (!inv) {
+            Utils.showToast("Invoice not found", "error");
+            return;
+        }
+        this.printInvoiceInNewTab(inv);
+    },
+
+    printInvoiceInNewTab(invData = null) {
+        let inv = invData;
+        if (!inv) {
+            // Read current invoice from billing form
+            const custName = document.getElementById('cust-name').value.trim() || 'Valued Customer';
+            const custPhone = document.getElementById('cust-phone').value.trim();
+            const custEmail = document.getElementById('cust-email').value.trim();
+            const custAddress = document.getElementById('cust-address').value.trim();
+            const invDate = document.getElementById('inv-date').value || new Date().toISOString().split('T')[0];
+            let invNumber = document.getElementById('inv-number').value.trim() || 'DRAFT';
+
+            const rows = document.querySelectorAll('#invoice-items-body tr');
+            const items = [];
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.product-search-input').value.trim();
+                if (nameInput) {
+                    items.push({
+                        name: nameInput,
+                        company: row.querySelector('.item-company').value.trim(),
+                        variant: row.querySelector('.item-variant').value.trim(),
+                        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+                        price: parseFloat(row.querySelector('.item-price').value) || 0,
+                        gstPercent: parseFloat(row.querySelector('.item-gst').value) || 0,
+                        discount: parseFloat(row.querySelector('.item-discount').value) || 0,
+                        total: parseFloat(row.dataset.finalTotal) || 0
+                    });
+                }
+            });
+
+            if (items.length === 0) {
+                Utils.showToast("Cannot print an empty invoice. Please add at least one line item.", "warning");
+                return;
+            }
+
+            inv = {
+                date: invDate,
+                number: invNumber,
+                customer: {
+                    name: custName,
+                    phone: custPhone,
+                    email: custEmail,
+                    address: custAddress
+                },
+                items: items,
+                subtotal: document.getElementById('summ-subtotal').textContent,
+                gst: document.getElementById('summ-gst').textContent,
+                itemDiscount: document.getElementById('summ-item-discount').textContent,
+                invDiscount: document.getElementById('summ-inv-discount').textContent,
+                grandTotal: document.getElementById('summ-total').textContent
+            };
+        }
+
+        const p = (window.ProfileManager && window.ProfileManager.profileData) || {};
         const shape = p.logoShape || 'banner';
-        
-        header.innerHTML = `
-            ${p.logo ? `<img src="${p.logo}" class="logo-shape-${shape}" alt="Logo">` : ''}
-            <h1>${this.escapeHTML(p.name)}</h1>
-            <p>${this.escapeHTML(p.address).replace(/\n/g, '<br>')}</p>
-            ${p.phone ? `<p>Phone: ${this.escapeHTML(p.phone)}</p>` : ''}
-            ${p.gstin ? `<p>GSTIN: ${this.escapeHTML(p.gstin)}</p>` : ''}
-        `;
+        const showLogo = p.printLogo !== false && p.logo;
+
+        // Build item rows HTML
+        let itemsHtml = '';
+        inv.items.forEach((item, index) => {
+            const itemTotalStr = item.total !== undefined ? Utils.formatCurrency(item.total) : Utils.formatCurrency(item.qty * item.price);
+            itemsHtml += `
+                <tr>
+                    <td style="text-align:center; color:#000;">${index + 1}</td>
+                    <td style="color:#000;"><strong>${this.escapeHTML(item.name)}</strong></td>
+                    <td style="color:#000;">${this.escapeHTML(item.company || '-')}</td>
+                    <td style="color:#000;">${this.escapeHTML(item.variant || '-')}</td>
+                    <td style="text-align:center; color:#000;">${item.qty}</td>
+                    <td style="text-align:right; color:#000;">${Utils.formatCurrency(item.price)}</td>
+                    <td style="text-align:center; color:#000;">${item.gstPercent || 0}%</td>
+                    <td style="text-align:right; color:#000;">${item.discount ? Utils.formatCurrency(item.discount) : '-'}</td>
+                    <td style="text-align:right; font-weight:600; color:#000;">${itemTotalStr}</td>
+                </tr>
+            `;
+        });
+
+        // Resolve summary totals
+        const subtotal = inv.subtotal || Utils.formatCurrency(inv.items.reduce((s, i) => s + (i.qty * i.price), 0));
+        const gst = inv.gst || Utils.formatCurrency(inv.items.reduce((s, i) => s + ((i.qty * i.price - (i.discount || 0)) * ((i.gstPercent || 0)/100)), 0));
+        const itemDiscount = inv.itemDiscount || Utils.formatCurrency(inv.items.reduce((s, i) => s + (i.discount || 0), 0));
+        const invDiscount = inv.invDiscount !== undefined ? (typeof inv.invDiscount === 'number' ? Utils.formatCurrency(inv.invDiscount) : inv.invDiscount) : '-₹0.00';
+        const grandTotal = inv.grandTotal !== undefined ? (typeof inv.grandTotal === 'number' ? Utils.formatCurrency(inv.grandTotal) : inv.grandTotal) : subtotal;
+
+        const logoHtml = showLogo ? `<img src="${p.logo}" class="logo-shape-${shape}" alt="Logo" style="max-height: 70px; width: auto; object-fit: contain; margin-bottom: 8px;">` : '';
+
+        const printableHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice #${this.escapeHTML(inv.number)}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 5mm;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Inter', Arial, Helvetica, sans-serif;
+            color: #000000 !important;
+            background: #ffffff !important;
+            padding: 16px;
+            font-size: 12px;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .invoice-card {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            color: #000000;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .biz-info {
+            max-width: 60%;
+        }
+        .biz-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #000000 !important;
+            margin-bottom: 4px;
+        }
+        .biz-sub {
+            font-size: 11px;
+            color: #111111 !important;
+            line-height: 1.4;
+        }
+        .inv-title-block {
+            text-align: right;
+        }
+        .inv-badge {
+            font-size: 24px;
+            font-weight: 800;
+            color: #000000 !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .inv-meta-text {
+            font-size: 12px;
+            color: #111111 !important;
+            margin-top: 4px;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .detail-box {
+            border: 1px solid #bbbbbb;
+            padding: 10px 12px;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        .detail-title {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #333333 !important;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+        .detail-content {
+            font-size: 12px;
+            color: #000000 !important;
+            line-height: 1.4;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+        .items-table th {
+            background-color: #f1f5f9;
+            color: #000000 !important;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            padding: 8px 6px;
+            border: 1px solid #94a3b8;
+        }
+        .items-table td {
+            padding: 8px 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 11px;
+            color: #000000 !important;
+        }
+        .totals-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 24px;
+        }
+        .totals-table {
+            width: 300px;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 5px 8px;
+            font-size: 12px;
+            color: #000000 !important;
+        }
+        .totals-table tr.grand-row {
+            font-weight: 700;
+            font-size: 14px;
+            border-top: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            background-color: #f8fafc;
+        }
+        .totals-table tr.grand-row td {
+            padding: 8px;
+            color: #000000 !important;
+        }
+        .invoice-footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 11px;
+            color: #444444 !important;
+            border-top: 1px solid #dddddd;
+            padding-top: 12px;
+        }
+        .logo-shape-banner { max-width: 220px; max-height: 70px; object-fit: contain; }
+        .logo-shape-circle { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
+        .logo-shape-square { width: 70px; height: 70px; border-radius: 6px; object-fit: cover; }
+
+        @media print {
+            body { padding: 0; }
+            .invoice-card { max-width: 100%; border: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-card">
+        <div class="header-row">
+            <div class="biz-info">
+                ${logoHtml}
+                <div class="biz-name">${this.escapeHTML(p.name || 'Ease Invoice')}</div>
+                <div class="biz-sub">
+                    ${p.address ? this.escapeHTML(p.address).replace(/\n/g, '<br>') : ''}<br>
+                    ${p.phone ? 'Phone: ' + this.escapeHTML(p.phone) + '<br>' : ''}
+                    ${p.gstin ? 'GSTIN: ' + this.escapeHTML(p.gstin) : ''}
+                </div>
+            </div>
+            <div class="inv-title-block">
+                <div class="inv-badge">TAX INVOICE</div>
+                <div class="inv-meta-text"><strong>Invoice #:</strong> ${this.escapeHTML(inv.number)}</div>
+                <div class="inv-meta-text"><strong>Date:</strong> ${Utils.formatDate(inv.date)}</div>
+            </div>
+        </div>
+
+        <div class="details-grid">
+            <div class="detail-box">
+                <div class="detail-title">Billed To</div>
+                <div class="detail-content">
+                    <strong>${this.escapeHTML(inv.customer.name)}</strong><br>
+                    ${inv.customer.phone ? 'Phone: ' + this.escapeHTML(inv.customer.phone) + '<br>' : ''}
+                    ${inv.customer.email ? 'Email: ' + this.escapeHTML(inv.customer.email) + '<br>' : ''}
+                    ${inv.customer.address ? this.escapeHTML(inv.customer.address) : ''}
+                </div>
+            </div>
+            <div class="detail-box">
+                <div class="detail-title">Invoice Details</div>
+                <div class="detail-content">
+                    <strong>Invoice #:</strong> ${this.escapeHTML(inv.number)}<br>
+                    <strong>Invoice Date:</strong> ${Utils.formatDate(inv.date)}<br>
+                    <strong>Status:</strong> Finalized
+                </div>
+            </div>
+        </div>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 35px;">#</th>
+                    <th>Item Description</th>
+                    <th style="width: 15%;">Company</th>
+                    <th style="width: 12%;">Variant</th>
+                    <th style="width: 50px; text-align: center;">Qty</th>
+                    <th style="width: 80px; text-align: right;">Price</th>
+                    <th style="width: 50px; text-align: center;">GST</th>
+                    <th style="width: 70px; text-align: right;">Disc.</th>
+                    <th style="width: 90px; text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${itemsHtml}
+            </tbody>
+        </table>
+
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr>
+                    <td>Subtotal:</td>
+                    <td style="text-align: right;">${subtotal}</td>
+                </tr>
+                <tr>
+                    <td>GST Amount:</td>
+                    <td style="text-align: right;">${gst}</td>
+                </tr>
+                <tr>
+                    <td>Item Discounts:</td>
+                    <td style="text-align: right;">${itemDiscount}</td>
+                </tr>
+                <tr>
+                    <td>Invoice Discount:</td>
+                    <td style="text-align: right;">${invDiscount}</td>
+                </tr>
+                <tr class="grand-row">
+                    <td>Grand Total:</td>
+                    <td style="text-align: right;">${grandTotal}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="invoice-footer">
+            Thank you for your business!
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.print();
+            }, 300);
+        });
+    </script>
+</body>
+</html>`;
+
+        const printWin = window.open('', '_blank');
+        if (printWin) {
+            printWin.document.open();
+            printWin.document.write(printableHTML);
+            printWin.document.close();
+            printWin.focus();
+        } else {
+            Utils.showToast("Pop-up blocked! Please allow pop-ups for this site to open the print tab.", "warning");
+        }
+    },
+
+    preparePrint() {
+        // Legacy fallback
     },
 
     escapeHTML(str) {

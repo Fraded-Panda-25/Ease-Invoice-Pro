@@ -1610,7 +1610,15 @@ body.theme-dark .items-table input[readonly] {
 
 /* Print Styles */
 @media print {
-    @page { margin: 1cm; size: A4; }
+    :root, body, body.theme-dark, body.theme-light {
+        --bg-color: #ffffff !important;
+        --surface: #ffffff !important;
+        --text-main: #000000 !important;
+        --text-muted: #333333 !important;
+        --border-color: #cccccc !important;
+    }
+
+    @page { margin: 0.3cm; size: A4; }
     
     body {
         background-color: white !important;
