@@ -11,6 +11,39 @@ const InventoryManager = {
         document.getElementById('stock-history-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
                 e.currentTarget.style.display = 'none';
+                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            }
+        });
+        // Close low stock modal when clicking outside the card
+        document.getElementById('low-stock-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.style.display = 'none';
+                this._resetBulkSelection();
+                document.getElementById('bulk-restock-panel').style.display = 'none';
+            }
+        });
+        // Close bulk restock confirm modal when clicking outside
+        document.getElementById('bulk-restock-confirm-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.style.display = 'none';
+                this._pendingBulkRestock = null;
+            }
+        });
+        // Close modals, dropdowns on Escape key (single consolidated handler)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('stock-history-modal').style.display = 'none';
+        document.getElementById('low-stock-modal').style.display = 'none';
+        document.getElementById('bulk-restock-confirm-modal').style.display = 'none';
+        document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+        // Clean up restock state
+        document.getElementById('inline-restock-panel').style.display = 'none';
+        document.getElementById('inventory-restock-panel').style.display = 'none';
+        this._restockProductId = null;
+        this._pendingBulkRestock = null;
+        // Clean up bulk restock state
+                document.getElementById('bulk-restock-panel').style.display = 'none';
+                this._resetBulkSelection();
             }
         });
         await this.loadInventory();
@@ -20,6 +53,8 @@ const InventoryManager = {
         try {
             this.products = await window.appDB.getAll('products');
             this.renderTable(this.products);
+            // Hide inventory restock panel when reloading
+            document.getElementById('inventory-restock-panel').style.display = 'none';
         } catch (e) {
             console.error(e);
             Utils.showToast("Failed to load inventory", "error");
@@ -40,12 +75,29 @@ const InventoryManager = {
             
             // Stock logic
             const isLowStock = prod.stockQty <= prod.lowStockThreshold;
-            const stockBadgeClass = isLowStock ? 'badge badge-danger' : 'badge badge-success';
+            // Approaching low stock: above threshold but within 5 units
+            const isApproachingLow = !isLowStock && prod.lowStockThreshold > 0 && prod.stockQty <= prod.lowStockThreshold + 5;
+            const stockBadgeClass = isLowStock ? 'badge badge-danger' : (isApproachingLow ? 'badge badge-warning' : 'badge badge-success');
+            
+            // Add data attributes for tooltip
+            tr.dataset.productName = this.escapeHTML(prod.name);
+            tr.dataset.productCompany = this.escapeHTML(prod.company || '-');
+            tr.dataset.productVariant = this.escapeHTML(prod.sizeUnit || '-');
+            tr.dataset.productPrice = Utils.formatCurrency(prod.unitPrice);
+            tr.dataset.productStock = prod.stockQty;
+            tr.dataset.productGst = prod.gstPercent || 0;
+            tr.dataset.productDiscount = Utils.formatCurrency(prod.defaultDiscount || 0);
+            tr.dataset.productThreshold = prod.lowStockThreshold;
+            tr.classList.add('inventory-row');
+            if (isLowStock) tr.classList.add('inventory-row--low-stock');
+            else if (isApproachingLow) tr.classList.add('inventory-row--approaching-low-stock');
+            else tr.classList.add('inventory-row--enough-stock');
             
             tr.innerHTML = `
                 <td>
                     <strong>${this.escapeHTML(prod.name)}</strong>
                     ${isLowStock ? '<span style="color:var(--danger); font-size:0.75rem; display:block;">Low Stock</span>' : ''}
+                    ${isApproachingLow ? '<span style="color:var(--warning); font-size:0.75rem; display:block;">⚠ Approaching Low</span>' : ''}
                 </td>
                 <td>${this.escapeHTML(prod.company || '-')}</td>
                 <td>${this.escapeHTML(prod.sizeUnit || '-')}</td>
@@ -55,7 +107,7 @@ const InventoryManager = {
                 <td>
                     <button class="btn btn-outline btn-sm" onclick="InventoryManager.editProduct('${prod.id}')">Edit</button>
                     <button class="btn btn-outline btn-sm" onclick="InventoryManager.showHistory('${prod.id}')">📋</button>
-                    <button class="btn btn-secondary btn-sm" onclick="InventoryManager.restockProduct('${prod.id}')">+ Restock</button>
+                    <button class="btn btn-secondary btn-sm" onclick="InventoryManager.showInventoryRestock('${prod.id}')">+ Restock</button>
                     <button class="btn btn-danger btn-sm" onclick="InventoryManager.deleteProduct('${prod.id}')">Del</button>
                 </td>
             `;
@@ -109,8 +161,36 @@ const InventoryManager = {
             document.getElementById('filter-history-type').value = '';
             this._applyHistoryFilter();
         });
+        // Download dropdown toggle
+        document.getElementById('btn-download-dropdown-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = document.getElementById('btn-download-dropdown-menu');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#download-dropdown')) {
+                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            }
+        });
+
+        // Export buttons
         document.getElementById('btn-export-history-csv').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
             this._exportHistoryCSV();
+        });
+        document.getElementById('btn-export-history-xlsx').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            this._exportHistoryXLSX();
+        });
+        document.getElementById('btn-export-history-pdf').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            this._exportHistoryPDF();
+        });
+        document.getElementById('btn-export-history-svg').addEventListener('click', () => {
+            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+            this._exportHistorySVG();
         });
     },
 
@@ -178,17 +258,88 @@ const InventoryManager = {
         }
     },
 
-    async restockProduct(productId) {
+    showInventoryRestock(productId) {
         const prod = this.products.find(p => p.id === productId);
         if (!prod) return;
 
-        const input = prompt(`Add stock to "${prod.name}" (Current: ${prod.stockQty}):`, '10');
-        if (input === null) return; // Cancel
+        this._restockProductId = productId;
 
-        const qty = parseInt(input, 10);
+        document.getElementById('inv-restock-product-name').textContent = prod.name;
+        document.getElementById('inv-restock-current-stock').textContent = prod.stockQty;
+
+        const qtyInput = document.getElementById('inv-restock-qty-input');
+        qtyInput.value = 10;
+        qtyInput.focus();
+        qtyInput.select();
+
+        this._updateRestockPreview(prod.stockQty, 10);
+
+        document.getElementById('inventory-restock-panel').style.display = 'block';
+
+        // Bind events (only once)
+        if (!this._invRestockEventsBound) {
+            document.getElementById('btn-cancel-inv-restock').addEventListener('click', () => {
+                document.getElementById('inventory-restock-panel').style.display = 'none';
+                this._restockProductId = null;
+            });
+
+            document.getElementById('btn-confirm-inv-restock').addEventListener('click', () => this._confirmInventoryRestock());
+
+            const qtyInputEl = document.getElementById('inv-restock-qty-input');
+            qtyInputEl.addEventListener('input', () => {
+                const p = this.products.find(x => x.id === this._restockProductId);
+                if (p) {
+                    const qty = parseInt(qtyInputEl.value, 10);
+                    if (!isNaN(qty) && qty > 0) {
+                        this._updateRestockPreview(p.stockQty, qty);
+                    }
+                }
+            });
+            qtyInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this._confirmInventoryRestock();
+                }
+            });
+
+            // Preset buttons for inventory restock
+            document.querySelectorAll('#inventory-restock-panel .restock-preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const qty = parseInt(btn.dataset.qty, 10);
+                    if (!isNaN(qty) && qty > 0) {
+                        qtyInputEl.value = qty;
+                        qtyInputEl.dispatchEvent(new Event('input'));
+                    }
+                });
+            });
+
+            this._invRestockEventsBound = true;
+        }
+    },
+
+    /**
+     * Shared helper: apply a single-product restock (DB save + history log).
+     * @param {string} productId - The product ID.
+     * @param {string} [qtyInputId] - Optional DOM element ID to read qty from.
+     * @param {number} [qtyOverride] - Optional direct qty value (overrides DOM read).
+     * Returns { success: boolean, qty: number, prod: object|null }.
+     */
+    async _applySingleRestock(productId, qtyInputId, qtyOverride) {
+        const prod = this.products.find(p => p.id === productId);
+        if (!prod) return { success: false, qty: 0, prod: null };
+
+        let qty;
+        if (qtyOverride !== undefined && !isNaN(qtyOverride)) {
+            qty = qtyOverride;
+        } else if (qtyInputId) {
+            const qtyInput = document.getElementById(qtyInputId);
+            qty = parseInt(qtyInput?.value, 10);
+        } else {
+            return { success: false, qty: 0, prod };
+        }
         if (isNaN(qty) || qty <= 0) {
             Utils.showToast('Enter a valid positive number.', 'error');
-            return;
+            return { success: false, qty: 0, prod };
         }
 
         try {
@@ -208,10 +359,23 @@ const InventoryManager = {
             }
 
             Utils.showToast(`Restocked +${qty} of "${prod.name}". Now ${prod.stockQty} in stock.`, 'success');
-            await this.loadInventory();
+            return { success: true, qty, prod };
         } catch (e) {
             console.error('Failed to restock:', e);
             Utils.showToast('Failed to restock product.', 'error');
+            return { success: false, qty: 0, prod };
+        }
+    },
+
+    async _confirmInventoryRestock() {
+        const productId = this._restockProductId;
+        if (!productId) return;
+
+        const result = await this._applySingleRestock(productId, 'inv-restock-qty-input');
+        if (result.success) {
+            document.getElementById('inventory-restock-panel').style.display = 'none';
+            this._restockProductId = null;
+            await this.loadInventory();
         }
     },
 
@@ -245,6 +409,520 @@ const InventoryManager = {
             console.error('Failed to load stock history:', e);
             Utils.showToast('Failed to load stock history', 'error');
         }
+    },
+
+    async showLowStockItems() {
+        try {
+            // Ensure inventory data is fresh
+            await this.loadInventory();
+            const lowStockProducts = this.products.filter(p => p.stockQty <= p.lowStockThreshold);
+            
+            const modal = document.getElementById('low-stock-modal');
+            const titleEl = modal.querySelector('.modal-title');
+            const tbody = document.getElementById('low-stock-body');
+            const countEl = document.getElementById('low-stock-count');
+            
+            titleEl.innerHTML = '⚠️ Low Stock Items <span id="low-stock-count" class="badge badge-danger" style="font-size:0.8rem; margin-left:0.5rem;">' + lowStockProducts.length + '</span>';
+            tbody.innerHTML = '';
+            
+            // Reset bulk selection
+            this._bulkSelectedIds = [];
+            document.getElementById('bulk-restock-panel').style.display = 'none';
+            const selectAllCb = document.getElementById('bulk-select-all');
+            if (selectAllCb) selectAllCb.checked = false;
+            
+            if (lowStockProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">🎉 No low stock items! All products are well stocked.</td></tr>';
+            } else {
+                lowStockProducts.forEach(prod => {
+                    const tr = document.createElement('tr');
+                    tr.classList.add('low-stock-row');
+                    tr.dataset.productId = prod.id;
+                    
+                    const isOut = prod.stockQty <= 0;
+                    const badgeClass = isOut ? 'badge badge-danger' : 'badge badge-warning';
+                    const statusText = isOut ? 'Out of Stock' : `${prod.stockQty} / ${prod.lowStockThreshold}`;
+                    
+                    tr.innerHTML = `
+                        <td><input type="checkbox" class="low-stock-checkbox" data-id="${prod.id}" title="Select for bulk restock"></td>
+                        <td><strong>${this.escapeHTML(prod.name)}</strong></td>
+                        <td>${this.escapeHTML(prod.company || '-')}</td>
+                        <td>${Utils.formatCurrency(prod.unitPrice)}</td>
+                        <td><span class="${badgeClass}">${statusText}</span></td>
+                        <td>
+                            <div class="low-stock-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="InventoryManager.restockFromLowStock('${prod.id}')">+ Restock</button>
+                                <button class="btn btn-outline btn-sm" onclick="InventoryManager.editFromLowStock('${prod.id}')">Edit</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                // Bind checkbox events
+                this._bindBulkCheckboxes();
+            }
+            
+            modal.style.display = 'flex';
+        } catch (e) {
+            console.error('Failed to load low stock items:', e);
+            Utils.showToast('Failed to load low stock items', 'error');
+        }
+    },
+
+    _bindBulkCheckboxes() {
+        // Initialize selection array
+        this._bulkSelectedIds = this._bulkSelectedIds || [];
+
+        // Use event delegation on tbody for individual checkboxes (no duplicate listeners)
+        const tbody = document.getElementById('low-stock-body');
+        if (!this._bulkTbodyDelegated) {
+            tbody.addEventListener('change', (e) => {
+                if (e.target.classList.contains('low-stock-checkbox')) {
+                    const id = e.target.dataset.id;
+                    if (e.target.checked) {
+                        if (!this._bulkSelectedIds.includes(id)) {
+                            this._bulkSelectedIds.push(id);
+                        }
+                        e.target.closest('tr').classList.add('selected');
+                    } else {
+                        this._bulkSelectedIds = this._bulkSelectedIds.filter(x => x !== id);
+                        e.target.closest('tr').classList.remove('selected');
+                    }
+                    this._syncSelectAllState();
+                    this._updateBulkPanel();
+                }
+            });
+            this._bulkTbodyDelegated = true;
+        }
+
+        // Select all checkbox
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (selectAllCb && !this._bulkSelectAllBound) {
+            selectAllCb.addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                document.querySelectorAll('.low-stock-checkbox').forEach(cb => {
+                    cb.checked = checked;
+                    const id = cb.dataset.id;
+                    const row = cb.closest('tr');
+                    if (checked) {
+                        if (!this._bulkSelectedIds.includes(id)) this._bulkSelectedIds.push(id);
+                        if (row) row.classList.add('selected');
+                    } else {
+                        this._bulkSelectedIds = [];
+                        if (row) row.classList.remove('selected');
+                    }
+                });
+                this._updateBulkPanel();
+            });
+            this._bulkSelectAllBound = true;
+        }            // Bulk restock panel event bindings (only once)
+            if (!this._bulkRestockEventsBound) {
+                document.getElementById('btn-cancel-bulk-restock').addEventListener('click', () => {
+                    this._resetBulkSelection();
+                    document.getElementById('bulk-restock-panel').style.display = 'none';
+                });
+
+                document.getElementById('btn-confirm-bulk-restock').addEventListener('click', () => {
+                    this._confirmBulkRestock();
+                });
+
+                document.getElementById('bulk-restock-qty-input').addEventListener('input', () => {
+                    this._updateBulkPreview();
+                });
+
+                document.getElementById('bulk-restock-qty-input').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this._confirmBulkRestock();
+                    }
+                });
+
+                // Bind preset buttons for bulk restock panel
+                document.querySelectorAll('#bulk-restock-panel .restock-preset-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const qty = parseInt(btn.dataset.qty, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            document.getElementById('bulk-restock-qty-input').value = qty;
+                            document.getElementById('bulk-restock-qty-input').dispatchEvent(new Event('input'));
+                        }
+                    });
+                });
+
+                this._bulkRestockEventsBound = true;
+            }
+    },
+
+    _resetBulkSelection() {
+        this._bulkSelectedIds = [];
+        document.querySelectorAll('.low-stock-checkbox').forEach(cb => { cb.checked = false; });
+        document.querySelectorAll('.low-stock-row.selected').forEach(r => r.classList.remove('selected'));
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+    },
+
+    _syncSelectAllState() {
+        const allCbs = document.querySelectorAll('.low-stock-checkbox');
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (!selectAllCb || allCbs.length === 0) return;
+        const allChecked = [...allCbs].every(cb => cb.checked);
+        selectAllCb.checked = allChecked;
+    },
+
+    _updateBulkPanel() {
+        const panel = document.getElementById('bulk-restock-panel');
+        const countEl = document.getElementById('bulk-selected-count');
+        const count = this._bulkSelectedIds ? this._bulkSelectedIds.length : 0;
+        countEl.textContent = count;
+
+        if (count > 0) {
+            panel.style.display = 'block';
+            this._updateBulkPreview();
+            this._renderBulkItemsList();
+        } else {
+            panel.style.display = 'none';
+        }
+    },
+
+    _updateBulkPreview() {
+        const qtyInput = document.getElementById('bulk-restock-qty-input');
+        const qty = parseInt(qtyInput.value, 10);
+        const previewEl = document.getElementById('bulk-restock-preview');
+        const count = this._bulkSelectedIds ? this._bulkSelectedIds.length : 0;
+
+        if (isNaN(qty) || qty <= 0 || count === 0) {
+            previewEl.textContent = '';
+            return;
+        }
+
+        const totalUnits = qty * count;
+        previewEl.textContent = `Adding ${qty} × ${count} items = ${totalUnits} total units across ${count} products`;
+    },
+
+    _renderBulkItemsList() {
+        const container = document.getElementById('bulk-restock-items');
+        container.innerHTML = '';
+
+        if (!this._bulkSelectedIds) return;
+
+        this._bulkSelectedIds.forEach(id => {
+            const prod = this.products.find(p => p.id === id);
+            if (prod) {
+                const chip = document.createElement('span');
+                chip.className = 'bulk-restock-item-chip';
+                chip.textContent = prod.name;
+                container.appendChild(chip);
+            }
+        });
+    },
+
+    async _confirmBulkRestock() {
+        const ids = this._bulkSelectedIds;
+        if (!ids || ids.length === 0) {
+            Utils.showToast('No items selected for bulk restock.', 'error');
+            return;
+        }
+
+        const qtyInput = document.getElementById('bulk-restock-qty-input');
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            Utils.showToast('Enter a valid positive number.', 'error');
+            return;
+        }
+
+        // Store parameters for confirmation
+        this._pendingBulkRestock = { ids, qty };
+        this._showBulkRestockConfirm(ids, qty);
+    },
+
+    _showBulkRestockConfirm(ids, qty) {
+        const modal = document.getElementById('bulk-restock-confirm-modal');
+        const summaryEl = document.getElementById('bulk-restock-confirm-summary');
+
+        // Compute totals
+        const products = ids.map(id => this.products.find(p => p.id === id)).filter(Boolean);
+        const totalUnits = qty * products.length;
+        let totalCost = 0;
+        products.forEach(p => {
+            const price = p.unitPrice || 0;
+            totalCost += price * qty;
+        });
+
+        // Build product chips HTML
+        const productChips = products.map(p => {
+            const price = p.unitPrice || 0;
+            const cost = price * qty;
+            return `<span class="bulk-restock-confirm-product-chip">
+                ${this.escapeHTML(p.name)}
+                <span class="chip-price">(${qty}×${Utils.formatCurrency(price)} = ${Utils.formatCurrency(cost)})</span>
+            </span>`;
+        }).join('');
+
+        summaryEl.innerHTML = `
+            <div class="bulk-restock-confirm-section">
+                <div class="confirm-section-title">📋 Summary</div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Products to restock</span>
+                    <span class="confirm-value">${products.length}</span>
+                </div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Quantity per product</span>
+                    <span class="confirm-value">+${qty} units</span>
+                </div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Total units to add</span>
+                    <span class="confirm-value">${totalUnits}</span>
+                </div>
+                <div class="bulk-restock-confirm-row">
+                    <span class="confirm-label">Estimated total cost</span>
+                    <span class="confirm-value total-cost">${Utils.formatCurrency(totalCost)}</span>
+                </div>
+            </div>
+            <div class="bulk-restock-confirm-section">
+                <div class="confirm-section-title">📦 Products</div>
+                <div class="bulk-restock-confirm-product-list">
+                    ${productChips}
+                </div>
+            </div>
+        `;
+
+        // Bind the execute button (only once)
+        if (!this._bulkConfirmExecBound) {
+            document.getElementById('btn-confirm-bulk-restock-execute').addEventListener('click', () => {
+                this._executeBulkRestock();
+            });
+            this._bulkConfirmExecBound = true;
+        }
+
+        modal.style.display = 'flex';
+    },
+
+    async _executeBulkRestock() {
+        if (!this._pendingBulkRestock) return;
+
+        const { ids, qty } = this._pendingBulkRestock;
+        this._pendingBulkRestock = null;
+
+        // Close the confirmation modal
+        document.getElementById('bulk-restock-confirm-modal').style.display = 'none';
+
+        let restockedCount = 0;
+        const errors = [];
+
+        for (const id of ids) {
+            const prod = this.products.find(p => p.id === id);
+            if (!prod) {
+                errors.push(id);
+                continue;
+            }
+
+            try {
+                prod.stockQty += qty;
+                await window.appDB.put('products', prod);
+
+                if (window.StockHistoryManager) {
+                    window.StockHistoryManager.addEntry({
+                        productId: prod.id,
+                        productName: prod.name,
+                        change: qty,
+                        remaining: prod.stockQty,
+                        date: new Date().toISOString().split('T')[0],
+                        invoiceNumber: '',
+                        type: 'restock'
+                    });
+                }
+
+                restockedCount++;
+            } catch (e) {
+                console.error('Failed to restock:', prod.name, e);
+                errors.push(prod.name);
+            }
+        }
+
+        // Hide bulk panel and reset
+        document.getElementById('bulk-restock-panel').style.display = 'none';
+        this._bulkSelectedIds = [];
+        document.querySelectorAll('.low-stock-checkbox').forEach(cb => { cb.checked = false; });
+        document.querySelectorAll('.low-stock-row.selected').forEach(r => r.classList.remove('selected'));
+        const selectAllCb = document.getElementById('bulk-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+
+        if (errors.length > 0) {
+            Utils.showToast(`Restocked ${restockedCount} items. ${errors.length} failed.`, 'warning');
+        } else {
+            Utils.showToast(`Successfully restocked ${restockedCount} items with +${qty} each!`, 'success');
+        }
+
+        await this.loadInventory();
+        this.showLowStockItems();
+    },
+
+    restockFromLowStock(productId) {
+        const prod = this.products.find(p => p.id === productId);
+        if (!prod) return;
+
+        // Store the product being restocked
+        this._restockProductId = productId;
+
+        // Populate the inline restock panel
+        document.getElementById('restock-product-name').textContent = prod.name;
+        document.getElementById('restock-current-stock').textContent = prod.stockQty;
+        document.getElementById('restock-threshold').textContent = prod.lowStockThreshold;
+        
+        const qtyInput = document.getElementById('restock-qty-input');
+        qtyInput.value = 10;
+        qtyInput.focus();
+        qtyInput.select();
+
+        // Show preview
+        this._updateRestockPreview(prod.stockQty, 10);
+
+        // Show the inline panel
+        document.getElementById('inline-restock-panel').style.display = 'block';            // Bind events (only once using a flag)
+            if (!this._restockEventsBound) {
+                document.getElementById('btn-cancel-restock').addEventListener('click', () => {
+                    document.getElementById('inline-restock-panel').style.display = 'none';
+                    this._restockProductId = null;
+                });
+
+                document.getElementById('btn-confirm-restock').addEventListener('click', () => this._confirmInlineRestock());
+
+                qtyInput.addEventListener('input', () => {
+                    const prod = this.products.find(p => p.id === this._restockProductId);
+                    if (prod) {
+                        const qty = parseInt(qtyInput.value, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            this._updateRestockPreview(prod.stockQty, qty);
+                        }
+                    }
+                });
+                qtyInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this._confirmInlineRestock();
+                    }
+                });
+                this._restockEventsBound = true;
+            }
+
+            // Bind preset buttons for inline restock (low stock modal)
+            if (!this._restockPresetsBound) {
+                document.querySelectorAll('#inline-restock-panel .restock-preset-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const qty = parseInt(btn.dataset.qty, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                            qtyInput.value = qty;
+                            qtyInput.dispatchEvent(new Event('input'));
+                        }
+                    });
+                });
+                this._restockPresetsBound = true;
+            }
+    },
+
+    _updateRestockPreview(currentStock, qty) {
+        const previewEl = document.getElementById('restock-preview');
+        if (isNaN(qty) || qty <= 0) {
+            previewEl.textContent = '';
+            return;
+        }
+        const newTotal = currentStock + qty;
+        previewEl.textContent = `New stock will be: ${currentStock} + ${qty} = ${newTotal}`;
+    },
+
+    async _confirmInlineRestock() {
+        const productId = this._restockProductId;
+        if (!productId) return;
+
+        const result = await this._applySingleRestock(productId, 'restock-qty-input');
+        if (result.success) {
+            document.getElementById('inline-restock-panel').style.display = 'none';
+            this._restockProductId = null;
+            await this.loadInventory();
+            this.showLowStockItems();
+        }
+    },
+
+    async showApproachingLowItems() {
+        try {
+            // Ensure inventory data is fresh
+            await this.loadInventory();
+            const approachingProducts = this.products.filter(p => {
+                const isLow = p.stockQty <= p.lowStockThreshold;
+                return !isLow && p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold + 5;
+            });
+            
+            // Reuse the low-stock modal but change the title and content
+            const modal = document.getElementById('low-stock-modal');
+            const titleEl = modal.querySelector('.modal-title');
+            const tbody = document.getElementById('low-stock-body');
+            const countEl = document.getElementById('low-stock-count');
+            
+            // Change title to indicate approaching-low mode
+            titleEl.innerHTML = '🟡 Approaching Low Stock <span id="low-stock-count" class="badge badge-warning" style="font-size:0.8rem; margin-left:0.5rem;">' + approachingProducts.length + '</span>';
+            
+            tbody.innerHTML = '';
+            
+            // Reset bulk selection
+            this._bulkSelectedIds = [];
+            document.getElementById('bulk-restock-panel').style.display = 'none';
+            const selectAllCb = document.getElementById('bulk-select-all');
+            if (selectAllCb) selectAllCb.checked = false;
+            
+            if (approachingProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">✅ No approaching low items! Stock levels are healthy.</td></tr>';
+            } else {
+                approachingProducts.forEach(prod => {
+                    const tr = document.createElement('tr');
+                    tr.classList.add('low-stock-row');
+                    tr.dataset.productId = prod.id;
+                    
+                    const badgeClass = 'badge badge-warning';
+                    const statusText = `${prod.stockQty} / ${prod.lowStockThreshold}`;
+                    
+                    tr.innerHTML = `
+                        <td><input type="checkbox" class="low-stock-checkbox" data-id="${prod.id}" title="Select for bulk restock"></td>
+                        <td><strong>${this.escapeHTML(prod.name)}</strong></td>
+                        <td>${this.escapeHTML(prod.company || '-')}</td>
+                        <td>${Utils.formatCurrency(prod.unitPrice)}</td>
+                        <td><span class="${badgeClass}">${statusText}</span></td>
+                        <td>
+                            <div class="low-stock-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="InventoryManager.restockFromLowStock('${prod.id}')">+ Restock</button>
+                                <button class="btn btn-outline btn-sm" onclick="InventoryManager.editFromLowStock('${prod.id}')">Edit</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                this._bindBulkCheckboxes();
+            }
+            
+            modal.style.display = 'flex';
+        } catch (e) {
+            console.error('Failed to load approaching low items:', e);
+            Utils.showToast('Failed to load approaching low items', 'error');
+        }
+    },
+
+    async editFromLowStock(productId) {
+        document.getElementById('low-stock-modal').style.display = 'none';
+        // Navigate to inventory page
+        const inventoryLink = document.querySelector('.nav-link[data-target="view-inventory"]');
+        if (inventoryLink) {
+            inventoryLink.click();
+        }
+        // Wait for inventory view to be visible, then open edit form
+        const waitForView = () => {
+            const inventoryView = document.getElementById('view-inventory');
+            if (inventoryView && inventoryView.classList.contains('active')) {
+                this.editProduct(productId);
+            } else {
+                requestAnimationFrame(waitForView);
+            }
+        };
+        requestAnimationFrame(waitForView);
     },
 
     async showAllHistory() {
@@ -305,9 +983,11 @@ const InventoryManager = {
             </thead>
             <tbody>`;
         pageEntries.forEach(e => {
-            const changeClass = e.change < 0 ? 'text-error' : 'text-success';
+            const isSold = e.change < 0;
+            const changeClass = isSold ? 'text-error' : 'text-success';
+            const rowClass = isSold ? 'history-row--sold' : 'history-row--restocked';
             const changeSign = e.change > 0 ? '+' : '';
-            html += `<tr>
+            html += `<tr class="${rowClass}">
                 ${showProduct ? `<td><strong>${this.escapeHTML(e.productName || '—')}</strong></td>` : ''}
                 <td>${Utils.formatDate(e.date)}</td>
                 <td class="${changeClass}"><strong>${changeSign}${e.change}</strong></td>
@@ -392,17 +1072,8 @@ const InventoryManager = {
             const points = sorted.map(e => ({ date: e.date, value: e.remaining }));
             return this._buildLineChartSVG(points, 'Stock Level');
         } else {
-            // --- All products: Grouped bar chart — daily sold vs restocked ---
-            const daily = {};
-            sorted.forEach(e => {
-                if (!daily[e.date]) daily[e.date] = { sold: 0, restocked: 0 };
-                if (e.change < 0) daily[e.date].sold += Math.abs(e.change);
-                else daily[e.date].restocked += e.change;
-            });
-            const dates = Object.keys(daily);
-            const soldData = dates.map(d => daily[d].sold);
-            const restockedData = dates.map(d => daily[d].restocked);
-            return this._buildBarChartSVG(dates, soldData, restockedData);
+            // --- All products / Sales stock: Candle bar chart with vertical product names ---
+            return this._buildBarChartSVG(sorted);
         }
     },
 
@@ -460,67 +1131,80 @@ const InventoryManager = {
         </div>`;
     },
 
-    _buildBarChartSVG(dates, soldData, restockedData) {
-        const W = 560, H = 140;
-        const PAD = { top: 12, right: 12, bottom: 28, left: 44 };
+    _buildBarChartSVG(entries) {
+        // Show up to 16 most recent entries chronologically for wide, readable candle bars
+        const chartEntries = entries.slice(-16);
+        const count = chartEntries.length;
+        if (count === 0) return '';
+
+        const W = 620, H = 190;
+        const PAD = { top: 24, right: 15, bottom: 32, left: 40 };
         const cw = W - PAD.left - PAD.right;
         const ch = H - PAD.top - PAD.bottom;
 
-        // Find max value for scaling (max of either sold or restocked)
-        const allValues = [...soldData, ...restockedData];
-        const maxVal = Math.max(...allValues, 1);
-        const barCount = dates.length;
-        const barWidth = Math.min(20, (cw / barCount) * 0.3);
-        const groupWidth = cw / barCount;
-
-        // Y-axis ticks (3 ticks)
+        // Determine maximum change magnitude for y-axis scaling
+        const maxVal = Math.max(...chartEntries.map(e => Math.abs(e.change)), 1);
         const ticks = [0, Math.round(maxVal / 2), maxVal];
-
         const yScale = (v) => PAD.top + ch - (v / maxVal) * ch;
 
+        const groupWidth = cw / count;
+        const barWidth = Math.min(32, Math.max(18, groupWidth * 0.75));
+
         let barsHtml = '';
-        dates.forEach((d, i) => {
-            const x = PAD.left + i * groupWidth + (groupWidth - barWidth * 2) / 2;
-            // Sold bar (red)
-            if (soldData[i] > 0) {
-                const barH = ch - yScale(soldData[i]) + PAD.top;
-                barsHtml += `<rect x="${x}" y="${yScale(soldData[i])}" width="${barWidth}" height="${barH}" class="chart-bar-sold"/>`;
+        chartEntries.forEach((e, i) => {
+            const isSold = e.change < 0;
+            const val = Math.abs(e.change);
+            const barH = Math.max(18, (ch + PAD.top) - yScale(val));
+            const x = PAD.left + i * groupWidth + (groupWidth - barWidth) / 2;
+            const y = PAD.top + ch - barH;
+            const centerX = x + barWidth / 2;
+            const centerY = y + barH / 2;
+
+            const barClass = isSold ? 'chart-bar-sold' : 'chart-bar-restocked';
+            
+            // Format product name to fit inside candle bar vertically
+            let prodName = e.productName || 'Product';
+            if (prodName.length > 15) {
+                prodName = prodName.slice(0, 14) + '…';
             }
-            // Restocked bar (green)
-            if (restockedData[i] > 0) {
-                const bx = x + barWidth;
-                const barH = ch - yScale(restockedData[i]) + PAD.top;
-                barsHtml += `<rect x="${bx}" y="${yScale(restockedData[i])}" width="${barWidth}" height="${barH}" class="chart-bar-restocked"/>`;
-            }
+
+            const tooltipText = `${this.escapeHTML(e.productName || 'Product')}\nType: ${isSold ? 'Sold' : 'Restocked'} (${e.change > 0 ? '+' : ''}${e.change})\nDate: ${Utils.formatDate(e.date)}${e.invoiceNumber ? '\nInvoice: ' + this.escapeHTML(e.invoiceNumber) : ''}`;
+
+            barsHtml += `
+                <g class="chart-candle-group" style="cursor:pointer;">
+                    <title>${tooltipText}</title>
+                    <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="3" class="${barClass}"/>
+                    <text x="${centerX}" y="${centerY}" 
+                          text-anchor="middle" 
+                          dominant-baseline="central" 
+                          transform="rotate(-90, ${centerX}, ${centerY})" 
+                          class="chart-candle-label">
+                        ${this.escapeHTML(prodName)}
+                    </text>
+                    <text x="${centerX}" y="${Math.max(12, y - 4)}" text-anchor="middle" class="chart-val-label">
+                        ${e.change > 0 ? '+' : ''}${e.change}
+                    </text>
+                    <text x="${centerX}" y="${H - 6}" text-anchor="middle" class="chart-x-label">
+                        ${Utils.formatDate(e.date).slice(0, 6)}
+                    </text>
+                </g>
+            `;
         });
 
-        // X-axis labels (show at most 5 labels evenly spaced)
-        const labelStep = Math.max(1, Math.floor(barCount / 5));
-        const dateLabelsHtml = dates
-            .filter((_, i) => i % labelStep === 0 || i === barCount - 1)
-            .map((d, i, arr) => {
-                // Find the original index for positioning
-                const idx = dates.indexOf(d);
-                const x = PAD.left + idx * groupWidth + groupWidth / 2;
-                return `<text x="${x}" y="${H - 4}" class="chart-x-label">${Utils.formatDate(d).slice(0, 6)}</text>`;
-            }).join('');
-
         return `<div class="stock-chart-container">
-            <div class="stock-chart-title">Daily Activity</div>
+            <div class="stock-chart-title">Stock Activity Chart (Product Names on Candles)</div>
             <svg viewBox="0 0 ${W} ${H}" class="stock-chart-svg">
                 <!-- Grid lines -->
                 ${ticks.map(v => `<line x1="${PAD.left}" y1="${yScale(v)}" x2="${W - PAD.right}" y2="${yScale(v)}" class="chart-gridline"/>`).join('')}
-                <!-- Bars -->
+                <!-- Candle Bars with Vertical Product Names -->
                 ${barsHtml}
-                <!-- Legend (inside SVG) -->
-                <rect x="${W - 100}" y="4" width="10" height="10" class="chart-bar-sold"/>
-                <text x="${W - 86}" y="12" class="chart-legend-text">Sold</text>
-                <rect x="${W - 52}" y="4" width="10" height="10" class="chart-bar-restocked"/>
-                <text x="${W - 38}" y="12" class="chart-legend-text">Restocked</text>
+                <!-- Legend -->
+                <rect x="${W - 110}" y="4" width="10" height="10" class="chart-bar-sold" rx="2"/>
+                <text x="${W - 96}" y="12" class="chart-legend-text">Sold</text>
+                <rect x="${W - 60}" y="4" width="10" height="10" class="chart-bar-restocked" rx="2"/>
+                <text x="${W - 46}" y="12" class="chart-legend-text">Restocked</text>
                 <!-- Y-axis labels -->
                 ${ticks.map(v => `<text x="${PAD.left - 6}" y="${yScale(v) + 4}" class="chart-y-label">${v}</text>`).join('')}
-                <!-- X-axis labels -->
-                ${dateLabelsHtml}
             </svg>
         </div>`;
     },
@@ -611,6 +1295,193 @@ const InventoryManager = {
         URL.revokeObjectURL(link.href);
 
         Utils.showToast(`Exported ${entries.length} entries to ${filename}`, 'success');
+    },
+
+    _exportHistoryXLSX() {
+        const entries = this._historyFilteredEntries || this._historyEntries;
+        if (!entries || entries.length === 0) {
+            Utils.showToast('No data to export.', 'error');
+            return;
+        }
+
+        const showProduct = this._historyShowProduct;
+
+        // Build header
+        const headers = [];
+        if (showProduct) headers.push('Product');
+        headers.push('Date', 'Change', 'Remaining', 'Invoice');
+
+        // Build rows
+        const rows = entries.map(e => {
+            const row = [];
+            if (showProduct) row.push(e.productName || '—');
+            row.push(e.date, e.change, e.remaining, e.invoiceNumber || '—');
+            return row;
+        });
+
+        // Compute summary
+        let totalSold = 0, totalRestocked = 0;
+        entries.forEach(e => {
+            if (e.change < 0) totalSold += Math.abs(e.change);
+            else totalRestocked += e.change;
+        });
+        const netChange = totalRestocked - totalSold;
+
+        // Generate XLSX using SheetJS (CDN loaded)
+        if (typeof XLSX === 'undefined') {
+            Utils.showToast('XLSX library loading... Please try again.', 'warning');
+            this._loadSheetJS(() => this._exportHistoryXLSX());
+            return;
+        }
+
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Stock History');
+
+        const filename = showProduct ? 'stock-history-all.xlsx' : 'stock-history.xlsx';
+        XLSX.writeFile(wb, filename);
+        Utils.showToast(`Exported ${entries.length} entries to ${filename}`, 'success');
+    },
+
+    _loadSheetJS(callback) {
+        if (document.getElementById('sheetjs-cdn')) {
+            setTimeout(callback, 500);
+            return;
+        }
+        const script = document.createElement('script');
+        script.id = 'sheetjs-cdn';
+        script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        script.onload = () => setTimeout(callback, 200);
+        script.onerror = () => Utils.showToast('Failed to load XLSX library.', 'error');
+        document.head.appendChild(script);
+    },
+
+    async _exportHistoryPDF() {
+        const entries = this._historyFilteredEntries || this._historyEntries;
+        if (!entries || entries.length === 0) {
+            Utils.showToast('No data to export.', 'error');
+            return;
+        }
+
+        const showProduct = this._historyShowProduct;
+
+        // Build a printable HTML string
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <style>
+            body { font-family: 'Inter', Arial, sans-serif; margin: 20px; color: #1e293b; }
+            h1 { font-size: 18px; margin-bottom: 4px; }
+            .subtitle { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { background: #f1f5f9; text-align: left; padding: 8px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 600; }
+            td { padding: 6px; border-bottom: 1px solid #e2e8f0; }
+            .positive { color: #10b981; font-weight: 600; }
+            .negative { color: #ef4444; font-weight: 600; }
+            .summary { margin-top: 16px; font-size: 12px; color: #64748b; }
+            .summary strong { color: #1e293b; }
+        </style></head><body>
+        <h1>Stock History${showProduct ? ' — All Products' : ''}</h1>
+        <div class="subtitle">Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        <table><thead><tr>`;
+
+        if (showProduct) html += '<th>Product</th>';
+        html += '<th>Date</th><th>Change</th><th>Remaining</th><th>Invoice</th></tr></thead><tbody>';
+
+        entries.forEach(e => {
+            const cls = e.change < 0 ? 'negative' : 'positive';
+            const sign = e.change > 0 ? '+' : '';
+            html += '<tr>';
+            if (showProduct) html += `<td><strong>${this.escapeHTML(e.productName || '—')}</strong></td>`;
+            html += `<td>${e.date}</td><td class="${cls}">${sign}${e.change}</td><td>${e.remaining}</td><td>${this.escapeHTML(e.invoiceNumber || '—')}</td></tr>`;
+        });
+
+        let totalSold = 0, totalRestocked = 0;
+        entries.forEach(e => {
+            if (e.change < 0) totalSold += Math.abs(e.change);
+            else totalRestocked += e.change;
+        });
+        const netChange = totalRestocked - totalSold;
+        const netSign = netChange > 0 ? '+' : '';
+
+        html += `</tbody></table>
+        <div class="summary"><strong>Sold:</strong> ${totalSold} &nbsp;|&nbsp; <strong>Restocked:</strong> ${totalRestocked} &nbsp;|&nbsp; <strong>Net:</strong> ${netSign}${netChange}</div>
+        </body></html>`;
+
+        // Use hidden iframe to avoid popup blockers
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:800px;height:600px;';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(html);
+        iframeDoc.close();
+
+        iframe.onload = () => {
+            setTimeout(() => {
+                iframe.contentWindow.print();
+                setTimeout(() => document.body.removeChild(iframe), 1000);
+            }, 300);
+        };
+        Utils.showToast('PDF preview opened — use Print > Save as PDF', 'success');
+    },
+
+    _exportHistorySVG() {
+        const chartContainer = document.querySelector('#stock-history-content .stock-chart-container');
+        if (!chartContainer) {
+            Utils.showToast('No chart available to export. Need at least 2 data points.', 'warning');
+            return;
+        }
+
+        const svg = chartContainer.querySelector('svg.stock-chart-svg');
+        if (!svg) {
+            Utils.showToast('Chart SVG not found.', 'error');
+            return;
+        }
+
+        // Clone SVG and add inline styles for standalone rendering
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+        // Read current theme CSS variables for accurate export
+        const cs = getComputedStyle(document.documentElement);
+        const colorBorder = cs.getPropertyValue('--border-color').trim() || '#e2e8f0';
+        const colorPrimary = cs.getPropertyValue('--primary').trim() || '#38bdf8';
+        const colorDanger = cs.getPropertyValue('--danger').trim() || '#f87171';
+        const colorSecondary = cs.getPropertyValue('--secondary').trim() || '#34d399';
+        const colorMuted = cs.getPropertyValue('--text-muted').trim() || '#94a3b8';
+        const colorSurface = cs.getPropertyValue('--surface').trim() || '#ffffff';
+
+        // Add inline styles matching current theme
+        const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        style.textContent = `
+            text { font-family: Inter, Arial, sans-serif; }
+            .chart-gridline { stroke: ${colorBorder}; stroke-width: 0.5; stroke-dasharray: 3,3; }
+            .chart-line { fill: none; stroke: ${colorPrimary}; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .chart-area { fill: ${colorPrimary}; opacity: 0.1; }
+            .chart-dot { fill: ${colorPrimary}; stroke: ${colorSurface}; stroke-width: 1.5; }
+            .chart-bar-sold { fill: ${colorDanger}; opacity: 0.8; }
+            .chart-bar-restocked { fill: ${colorSecondary}; opacity: 0.8; }
+            .chart-y-label, .chart-x-label { fill: ${colorMuted}; font-size: 9px; }
+            .chart-candle-label { fill: #ffffff; font-size: 10px; font-weight: 600; }
+            .chart-val-label { fill: ${colorMuted}; font-size: 9px; font-weight: 600; }
+            .chart-legend-text { fill: ${colorMuted}; font-size: 9px; }
+        `;
+        clone.insertBefore(style, clone.firstChild);
+
+        const svgString = new XMLSerializer().serializeToString(clone);
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'stock-history-chart.svg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast('Chart exported as SVG', 'success');
     },
 
     _csvEscape(str) {

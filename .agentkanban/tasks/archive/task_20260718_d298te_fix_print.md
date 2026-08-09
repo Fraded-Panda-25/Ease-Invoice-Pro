@@ -1,16 +1,17 @@
 ---
 title: Fix print
-lane: todo
+lane: done
 created: 2026-07-18T11:12:21.126Z
-updated: 2026-07-19T09:17:47.261Z
+updated: 2026-08-09T13:11:23.511Z
 description: When I tap on print after completing my billing, It does not print anything.
 priority: critical
 assignee: Pritam Paul
 labels:
   - fast
-sortOrder: 1
-slug: fix_print
+sortOrder: 7
+slug: "fix_print\r"
 ---
+
 
 ## Conversation
 

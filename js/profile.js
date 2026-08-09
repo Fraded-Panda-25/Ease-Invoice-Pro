@@ -9,7 +9,8 @@ const ProfileManager = {
         phone: '',
         prefix: 'INV-',
         logo: '',
-        logoShape: 'banner'
+        logoShape: 'banner',
+        printLogo: true
     },
 
     async init() {
@@ -38,6 +39,11 @@ const ProfileManager = {
         document.getElementById('biz-prefix').value = this.profileData.prefix || 'INV-';
         
         document.getElementById('biz-logo-shape').value = this.profileData.logoShape || 'banner';
+        
+        const printLogoCheckbox = document.getElementById('biz-print-logo');
+        if (printLogoCheckbox) {
+            printLogoCheckbox.checked = this.profileData.printLogo !== false;
+        }
         
         if (this.profileData.logo) {
             const preview = document.getElementById('logo-preview');
@@ -173,6 +179,10 @@ const ProfileManager = {
         this.profileData.phone = document.getElementById('biz-phone').value;
         this.profileData.prefix = document.getElementById('biz-prefix').value;
         this.profileData.logoShape = document.getElementById('biz-logo-shape').value;
+        const printLogoCheckbox = document.getElementById('biz-print-logo');
+        if (printLogoCheckbox) {
+            this.profileData.printLogo = printLogoCheckbox.checked;
+        }
         // Logo is handled via change event
 
         try {

@@ -176,7 +176,7 @@ body.sidebar-resizing {
     color: var(--text-muted);
     border-radius: var(--radius);
     font-weight: 500;
-    transition: var(--transition);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .nav-link:hover {
@@ -374,6 +374,101 @@ body.theme-dark #invoice-items-table tbody tr.row-stock-warning {
     background-color: rgba(248, 113, 113, 0.08);
 }
 
+/* Low stock indicator inside invoice rows */
+.row-low-stock-warning {
+    margin-top: 0.4rem;
+    animation: stockWarningIn 0.2s ease-out;
+}
+
+.low-stock-indicator {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    background-color: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+}
+
+.low-stock-indicator .low-stock-icon {
+    font-size: 0.8rem;
+    line-height: 1;
+}
+
+.low-stock-indicator .low-stock-msg {
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.low-stock-indicator .low-stock-msg strong {
+    font-weight: 700;
+}
+
+.low-stock-indicator .btn-restock-inline {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    align-self: flex-start;
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.low-stock-indicator .btn-restock-inline:hover {
+    background-color: rgba(245, 158, 11, 0.15);
+    border-color: var(--warning);
+}
+
+/* Quick restock panel inside invoice row */
+.low-stock-indicator .quick-restock-panel {
+    margin-top: 0.25rem;
+    padding: 0.5rem;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    animation: restockPanelIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.low-stock-indicator .quick-restock-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.low-stock-indicator .quick-restock-row .quick-restock-qty {
+    width: 60px !important;
+    padding: 0.3rem 0.4rem !important;
+    font-size: 0.8rem !important;
+    text-align: center;
+    font-weight: 600;
+}
+
+.low-stock-indicator .quick-restock-row .restock-preset-btn {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+}
+
+.low-stock-indicator .quick-restock-row .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    min-width: 28px;
+}
+
+.stock-value {
+    font-weight: 600;
+}
+
+/* Override mobile layout for stock cell */
+@media (max-width: 768px) {
+    #invoice-items-table tbody td.item-stock-billing {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .low-stock-indicator {
+        width: 100%;
+    }
+}
+
 /* Mobile card layout for invoice items table */
 @media (max-width: 768px) {
     /* Hide the normal thead on mobile */
@@ -471,6 +566,144 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+    transition: background-color 0.3s ease;
+}
+
+.data-table tbody tr {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.data-table tbody tr:hover {
+    background-color: rgba(56, 189, 248, 0.05);
+    z-index: 1;
+    position: relative;
+}
+
+.data-table tbody tr:hover td {
+    background-color: transparent;
+}
+
+/* Inventory Tooltip */
+.inventory-tooltip {
+    position: fixed;
+    z-index: 10000;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.inventory-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* Tooltip Glow Effect */
+@keyframes glowPulse {
+    0%, 100% {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.35);
+    }
+    50% {
+        box-shadow: 0 0 28px 6px rgba(56, 189, 248, 0.5);
+    }
+}
+
+.tooltip-glow {
+    animation: glowPulse 1.5s ease-in-out infinite;
+    border-color: var(--primary) !important;
+}
+
+body.theme-light .tooltip-glow {
+    animation: glowPulseLight 1.5s ease-in-out infinite;
+}
+
+@keyframes glowPulseLight {
+    0%, 100% {
+        box-shadow: 0 0 20px 4px rgba(14, 165, 233, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 28px 6px rgba(14, 165, 233, 0.45);
+    }
+}
+
+body.theme-dark .tooltip-glow {
+    animation: glowPulseDark 1.5s ease-in-out infinite;
+}
+
+@keyframes glowPulseDark {
+    0%, 100% {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 28px 6px rgba(56, 189, 248, 0.55);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tooltip-glow {
+        animation: none;
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.35) !important;
+    }
+    body.theme-light .tooltip-glow {
+        box-shadow: 0 0 20px 4px rgba(14, 165, 233, 0.3) !important;
+    }
+    body.theme-dark .tooltip-glow {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.4) !important;
+    }
+}
+
+.inventory-tooltip .tooltip-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.inventory-tooltip .tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.25rem 0;
+    font-size: 0.85rem;
+}
+
+.inventory-tooltip .tooltip-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.inventory-tooltip .tooltip-value {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.inventory-tooltip .tooltip-value.highlight {
+    color: var(--primary);
+}
+
+.inventory-tooltip .tooltip-value.danger {
+    color: var(--danger);
+}
+
+.inventory-tooltip .tooltip-value.success {
+    color: var(--secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inventory-tooltip {
+        transition: opacity 0.1s ease;
+        transform: none;
+    }
 }
 
 /* Dashboard Stats Grid */
@@ -490,12 +723,16 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     flex-direction: column;
     gap: 0.25rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px -2px rgba(0, 0, 0, 0.1);
+.stat-card[data-action] {
+    cursor: pointer;
+    user-select: none;
+}
+
+.stat-card[data-action]:active {
+    transform: scale(0.97);
 }
 
 .stat-card .stat-label {
@@ -510,6 +747,680 @@ body.theme-dark .data-table th, body.theme-dark .items-table th {
     font-size: 1.75rem;
     font-weight: 700;
     color: var(--text-main);
+    transition: color 0.3s ease;
+}
+
+/* Low Stock Badge Pulse Animation */
+.stat-card.stat-low-stock {
+    border-color: var(--danger);
+    border-left: 3px solid var(--danger);
+    border-radius: var(--radius-lg);
+    animation: lowStockPulse 2s ease-in-out infinite, statLowStockBorderPulse var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+@keyframes lowStockPulse {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 0 rgba(239, 68, 68, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+}
+
+@keyframes statLowStockBorderPulse {
+    0%, 100% {
+        box-shadow: inset 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+    50% {
+        box-shadow: inset 0 0 8px 0 rgba(239, 68, 68, 0.08);
+    }
+}
+
+body.theme-dark .stat-card.stat-low-stock {
+    animation: lowStockPulseDark 2s ease-in-out infinite, statLowStockBorderPulseDark var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+@keyframes lowStockPulseDark {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 0 rgba(248, 113, 113, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 6px rgba(248, 113, 113, 0);
+    }
+}
+
+@keyframes statLowStockBorderPulseDark {
+    0%, 100% {
+        box-shadow: inset 0 0 0 0 rgba(248, 113, 113, 0);
+    }
+    50% {
+        box-shadow: inset 0 0 8px 0 rgba(248, 113, 113, 0.1);
+    }
+}
+
+/* Approaching Low Stock stat card — yellow glow with pulsing border */
+@keyframes approachingLowPulse {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 0 rgba(245, 158, 11, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 6px rgba(245, 158, 11, 0);
+    }
+}
+
+@keyframes statApproachingLowBorderPulse {
+    0%, 100% {
+        box-shadow: inset 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+    50% {
+        box-shadow: inset 0 0 8px 0 rgba(245, 158, 11, 0.08);
+    }
+}
+
+body.theme-dark .stat-card.stat-approaching-low-stock {
+    animation: approachingLowPulseDark 2s ease-in-out infinite, statApproachingLowBorderPulseDark var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+@keyframes approachingLowPulseDark {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 0 rgba(251, 191, 36, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 0 0 6px rgba(251, 191, 36, 0);
+    }
+}
+
+@keyframes statApproachingLowBorderPulseDark {
+    0%, 100% {
+        box-shadow: inset 0 0 0 0 rgba(251, 191, 36, 0);
+    }
+    50% {
+        box-shadow: inset 0 0 8px 0 rgba(251, 191, 36, 0.1);
+    }
+}
+
+.stat-card.stat-approaching-low-stock {
+    border-color: var(--warning);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius-lg);
+    animation: approachingLowPulse 2s ease-in-out infinite, statApproachingLowBorderPulse var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+/* Low stock count badge */
+.low-stock-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1;
+    animation: badgeBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.low-stock-badge.badge-danger {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
+
+body.theme-dark .low-stock-badge.badge-danger {
+    background-color: rgba(248, 113, 113, 0.15);
+    color: var(--danger);
+}
+
+.low-stock-badge.badge-success {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: var(--secondary);
+}
+
+@keyframes badgeBounce {
+    0% { transform: scale(0.5); opacity: 0; }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Pulsing dot indicator for out-of-stock */
+.low-stock-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--danger);
+    margin-left: 6px;
+    vertical-align: middle;
+    animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+/* Sidebar nav low-stock alert dot */
+.nav-low-stock-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--danger);
+    margin-left: auto;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px 0 var(--danger);
+    animation: navDotPulse 1.5s ease-in-out infinite;
+    position: relative;
+    top: -2px;
+}
+
+@keyframes navDotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 6px 0 var(--danger); }
+    50% { opacity: 0.6; transform: scale(0.8); box-shadow: 0 0 10px 2px var(--danger); }
+}
+
+@keyframes dotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stat-card.stat-low-stock,
+    .stat-card.stat-approaching-low-stock {
+        animation: none !important;
+        border-color: var(--danger);
+        border-left: 3px solid var(--danger);
+    }
+    .stat-card.stat-approaching-low-stock {
+        border-color: var(--warning);
+        border-left: 3px solid var(--warning);
+    }
+    .low-stock-badge {
+        animation: none;
+    }
+    .low-stock-dot {
+        animation: none;
+    }
+    .nav-low-stock-dot {
+        animation: none;
+        box-shadow: 0 0 6px 0 var(--danger);
+    }
+}
+
+/* Low Stock Modal enhancements */
+.low-stock-row {
+    transition: background-color 0.2s ease;
+}
+.low-stock-row:hover {
+    background-color: rgba(239, 68, 68, 0.05);
+}
+body.theme-dark .low-stock-row:hover {
+    background-color: rgba(248, 113, 113, 0.08);
+}
+.low-stock-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Inline Restock Panel */
+.inline-restock-panel {
+    background-color: var(--surface);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    animation: restockPanelIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes restockPanelIn {
+    from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.inline-restock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.inline-restock-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.inline-restock-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.inline-restock-info {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.inline-restock-info strong {
+    color: var(--text-main);
+}
+
+.inline-restock-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.inline-restock-input-row label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.inline-restock-input-row .form-control {
+    width: 100px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.inline-restock-preview {
+    font-size: 0.85rem;
+    color: var(--secondary);
+    font-weight: 500;
+}
+
+@media (max-width: 480px) {
+    .inline-restock-input-row {
+        flex-wrap: wrap;
+    }
+    .inline-restock-info {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}
+
+/* Restock Preset Buttons */
+.restock-presets {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.restock-preset-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    background-color: var(--surface);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.restock-preset-btn:hover {
+    background-color: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+
+.restock-preset-btn:active {
+    transform: scale(0.95);
+}
+
+/* Bulk Restock Panel */
+.bulk-restock-panel {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(56, 189, 248, 0.08));
+    border: 2px solid var(--secondary);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    animation: restockPanelIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bulk-restock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.bulk-restock-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.bulk-restock-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.bulk-restock-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.bulk-restock-input-row label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.bulk-restock-input-row .form-control {
+    width: 100px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.bulk-restock-preview {
+    font-size: 0.85rem;
+    color: var(--secondary);
+    font-weight: 500;
+}
+
+.bulk-restock-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    max-height: 100px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    background-color: rgba(0,0,0,0.03);
+    border-radius: var(--radius);
+}
+
+body.theme-dark .bulk-restock-items {
+    background-color: rgba(255,255,255,0.03);
+}
+
+.bulk-restock-item-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+/* Inventory Table Color Legend */
+.inventory-color-legend {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    background-color: rgba(0,0,0,0.02);
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+}
+
+body.theme-dark .inventory-color-legend {
+    background-color: rgba(255,255,255,0.03);
+}
+
+.inventory-color-legend .legend-label {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 0.25rem;
+}
+
+.inventory-color-legend .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    cursor: default;
+}
+
+.inventory-color-legend .legend-item:hover {
+    background-color: rgba(56, 189, 248, 0.06);
+}
+
+.inventory-color-legend .legend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.inventory-color-legend .legend-item--danger .legend-swatch {
+    background-color: var(--danger);
+}
+
+.inventory-color-legend .legend-item--warning .legend-swatch {
+    background-color: var(--warning);
+}
+
+.inventory-color-legend .legend-item--primary .legend-swatch {
+    background-color: var(--primary);
+}
+
+/* Pulsing red border for low-stock inventory rows */
+@keyframes lowStockBorderPulse {
+    0%, 100% {
+        border-left: 3px solid var(--danger);
+        box-shadow: inset 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+    50% {
+        border-left: 3px solid var(--danger);
+        box-shadow: inset 0 0 8px 0 rgba(239, 68, 68, 0.08);
+    }
+}
+
+body.theme-dark .inventory-row--low-stock {
+    animation: lowStockBorderPulseDark var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+@keyframes lowStockBorderPulseDark {
+    0%, 100% {
+        border-left: 3px solid var(--danger);
+        box-shadow: inset 0 0 0 0 rgba(248, 113, 113, 0);
+    }
+    50% {
+        border-left: 3px solid var(--danger);
+        box-shadow: inset 0 0 8px 0 rgba(248, 113, 113, 0.1);
+    }
+}
+
+.inventory-row--low-stock {
+    border-left: 3px solid transparent;
+    animation: lowStockBorderPulse var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+    transition: border-left-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.inventory-row--low-stock:hover {
+    animation-play-state: paused;
+    border-left: 3px solid var(--danger);
+}
+
+/* Invoice builder low-stock rows use the same red keyframes */
+.invoice-row--low-stock {
+    border-left: 3px solid transparent;
+    animation: lowStockBorderPulse var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+    transition: border-left-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+body.theme-dark .invoice-row--low-stock {
+    animation: lowStockBorderPulseDark var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+.invoice-row--low-stock:hover {
+    animation-play-state: paused;
+    border-left: 3px solid var(--danger);
+}
+
+/* Invoice builder enough-stock rows — static blue left border accent */
+.invoice-row--enough-stock {
+    border-left: 3px solid var(--primary);
+}
+
+body.theme-dark .invoice-row--enough-stock {
+    border-left: 3px solid var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inventory-row--low-stock {
+        animation: none !important;
+        border-left: 3px solid var(--danger);
+    }
+    .inventory-row--approaching-low-stock {
+        animation: none !important;
+        border-left: 3px solid var(--warning);
+    }
+    .invoice-row--low-stock {
+        animation: none !important;
+        border-left: 3px solid var(--danger);
+    }
+}
+
+/* Pulsing blue border for enough-stock inventory rows */
+@keyframes enoughStockBorderPulse {
+    0%, 100% {
+        border-left: 3px solid var(--primary);
+        box-shadow: inset 0 0 0 0 rgba(56, 189, 248, 0);
+    }
+    50% {
+        border-left: 3px solid var(--primary);
+        box-shadow: inset 0 0 8px 0 rgba(56, 189, 248, 0.08);
+    }
+}
+
+body.theme-dark .inventory-row--enough-stock {
+    animation: enoughStockBorderPulseDark var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+@keyframes enoughStockBorderPulseDark {
+    0%, 100% {
+        border-left: 3px solid var(--primary);
+        box-shadow: inset 0 0 0 0 rgba(56, 189, 248, 0);
+    }
+    50% {
+        border-left: 3px solid var(--primary);
+        box-shadow: inset 0 0 8px 0 rgba(56, 189, 248, 0.1);
+    }
+}
+
+.inventory-row--enough-stock {
+    border-left: 3px solid transparent;
+    animation: enoughStockBorderPulse var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+    transition: border-left-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.inventory-row--enough-stock:hover {
+    animation-play-state: paused;
+    border-left: 3px solid var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inventory-row--enough-stock {
+        animation: none !important;
+        border-left: 3px solid var(--primary);
+    }
+}
+
+/* Pulsing orange/yellow border for approaching-low-stock inventory rows */
+@keyframes approachingLowStockBorderPulse {
+    0%, 100% {
+        border-left: 3px solid var(--warning);
+        box-shadow: inset 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+    50% {
+        border-left: 3px solid var(--warning);
+        box-shadow: inset 0 0 8px 0 rgba(245, 158, 11, 0.08);
+    }
+}
+
+body.theme-dark .inventory-row--approaching-low-stock {
+    animation: approachingLowStockBorderPulseDark var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+}
+
+@keyframes approachingLowStockBorderPulseDark {
+    0%, 100% {
+        border-left: 3px solid var(--warning);
+        box-shadow: inset 0 0 0 0 rgba(251, 191, 36, 0);
+    }
+    50% {
+        border-left: 3px solid var(--warning);
+        box-shadow: inset 0 0 8px 0 rgba(251, 191, 36, 0.1);
+    }
+}
+
+.inventory-row--approaching-low-stock {
+    border-left: 3px solid transparent;
+    animation: approachingLowStockBorderPulse var(--pulsing-border-speed, 2.5s) ease-in-out infinite;
+    transition: border-left-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.inventory-row--approaching-low-stock:hover {
+    animation-play-state: paused;
+    border-left: 3px solid var(--warning);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inventory-row--approaching-low-stock {
+        animation: none;
+        border-left: 3px solid var(--warning);
+    }
+}
+
+/* Low stock table checkbox */
+.low-stock-table input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.low-stock-table thead input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.low-stock-row.selected {
+    background-color: rgba(56, 189, 248, 0.1) !important;
+}
+
+body.theme-dark .low-stock-row.selected {
+    background-color: rgba(56, 189, 248, 0.15) !important;
+}
+
+@media (max-width: 480px) {
+    .bulk-restock-input-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 /* Invoice Specific */
@@ -699,7 +1610,15 @@ body.theme-dark .items-table input[readonly] {
 
 /* Print Styles */
 @media print {
-    @page { margin: 1cm; size: A4; }
+    :root, body, body.theme-dark, body.theme-light {
+        --bg-color: #ffffff !important;
+        --surface: #ffffff !important;
+        --text-main: #000000 !important;
+        --text-muted: #333333 !important;
+        --border-color: #cccccc !important;
+    }
+
+    @page { margin: 0.3cm; size: A4; }
     
     body {
         background-color: white !important;
@@ -950,6 +1869,253 @@ body.theme-dark .items-table input[readonly] {
     gap: 0.5rem;
 }
 
+/* Border Speed Picker (segmented control) */
+.speed-picker {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+    width: 100%;
+}
+
+.speed-picker input[type="radio"] {
+    display: none;
+}
+
+.speed-picker-label {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background-color: var(--surface);
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    border-right: 1px solid var(--border-color);
+    user-select: none;
+}
+
+.speed-picker-label:last-child {
+    border-right: none;
+}
+
+.speed-picker-label:hover {
+    background-color: rgba(56, 189, 248, 0.06);
+}
+
+.speed-picker input[type="radio"]:checked + .speed-picker-label {
+    background-color: var(--primary);
+    color: #fff;
+}
+
+body.theme-dark .speed-picker-label:hover {
+    background-color: rgba(56, 189, 248, 0.08);
+}
+
+/* Pulsing Border Toggle Switch — iOS-style polished toggle */
+label.toggle-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+label.toggle-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.toggle-slider {
+    position: relative;
+    width: 44px;
+    height: 26px;
+    background-color: var(--border-color);
+    border: 2px solid rgba(0, 0, 0, 0.06);
+    border-radius: 13px;
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+body.theme-dark .toggle-slider {
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* Hover: subtle track glow */
+.toggle-label:hover .toggle-slider {
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 2px rgba(56, 189, 248, 0.06);
+}
+
+body.theme-dark .toggle-label:hover .toggle-slider {
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(56, 189, 248, 0.1);
+}
+
+/* Hover: knob lifts slightly */
+.toggle-label:hover .toggle-slider::after {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Checked state */
+.toggle-label input[type="checkbox"]:checked + .toggle-slider {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-label input[type="checkbox"]:checked + .toggle-slider::after {
+    transform: translateX(18px);
+    background-color: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Focus-visible ring for keyboard navigation */
+.toggle-label input[type="checkbox"]:focus-visible + .toggle-slider {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+}
+
+/* Active/pressed state: knob scales down */
+.toggle-label input[type="checkbox"]:active + .toggle-slider::after {
+    transform: scale(0.85);
+}
+
+.toggle-label input[type="checkbox"]:checked:active + .toggle-slider::after {
+    transform: translateX(18px) scale(0.85);
+}
+
+.toggle-text {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-main);
+    line-height: 1.4;
+    flex: 1;
+}
+
+/* Disable pulsing border when toggled off */
+body.pulsing-border-off .inventory-row--low-stock,
+body.pulsing-border-off .invoice-row--low-stock,
+body.pulsing-border-off .stat-card.stat-low-stock,
+body.pulsing-border-off .stat-card.stat-approaching-low-stock,
+body.pulsing-border-off .inventory-row--approaching-low-stock,
+body.pulsing-border-off .inventory-row--enough-stock {
+    animation: none !important;
+    border-left: 3px solid var(--danger);
+}
+body.pulsing-border-off .inventory-row--approaching-low-stock {
+    border-left-color: var(--warning);
+}
+body.pulsing-border-off .inventory-row--enough-stock {
+    border-left-color: var(--primary);
+}
+body.pulsing-border-off .stat-card.stat-approaching-low-stock {
+    border-left-color: var(--warning);
+}
+body.pulsing-border-off .inventory-row--low-stock:hover,
+body.pulsing-border-off .invoice-row--low-stock:hover,
+body.pulsing-border-off .stat-card.stat-low-stock:hover,
+body.pulsing-border-off .stat-card.stat-approaching-low-stock:hover,
+body.pulsing-border-off .inventory-row--approaching-low-stock:hover,
+body.pulsing-border-off .inventory-row--enough-stock:hover {
+    animation-play-state: initial;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.pulsing-border-off .inventory-row--low-stock,
+    body.pulsing-border-off .invoice-row--low-stock,
+    body.pulsing-border-off .stat-card.stat-low-stock,
+    body.pulsing-border-off .stat-card.stat-approaching-low-stock,
+    body.pulsing-border-off .inventory-row--approaching-low-stock {
+        border-left: 3px solid var(--danger);
+    }
+    body.pulsing-border-off .inventory-row--approaching-low-stock,
+    body.pulsing-border-off .stat-card.stat-approaching-low-stock {
+        border-left-color: var(--warning);
+    }
+}
+
+/* Glow Intensity Settings */
+.glow-intensity-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+
+.glow-intensity-value {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    min-width: 40px;
+    text-align: right;
+}
+
+.glow-intensity-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border-color);
+    outline: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.glow-intensity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--surface);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.glow-intensity-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+}
+
+.glow-intensity-slider::-webkit-slider-thumb:active {
+    transform: scale(0.95);
+}
+
+.glow-intensity-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--surface);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
+
 /* Stock history date range filter bar */
 .history-filter-bar {
     display: flex;
@@ -994,6 +2160,137 @@ body.theme-dark .items-table input[readonly] {
     .history-filter-bar .filter-type {
         width: 110px;
     }
+}
+
+/* Download Dropdown */
+.download-dropdown {
+    position: relative;
+}
+
+.download-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    z-index: 100;
+    overflow: hidden;
+    animation: dropdownSlideIn 0.15s ease;
+}
+
+@keyframes dropdownSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.download-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+}
+
+.download-dropdown-item:hover {
+    background-color: rgba(56, 189, 248, 0.1);
+    color: var(--primary);
+}
+
+body.theme-dark .download-dropdown-item:hover {
+    background-color: rgba(56, 189, 248, 0.1);
+}
+
+/* Bulk Restock Confirmation Styles */
+.bulk-restock-confirm-section {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.bulk-restock-confirm-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.bulk-restock-confirm-section .confirm-section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.bulk-restock-confirm-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.bulk-restock-confirm-row .confirm-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.bulk-restock-confirm-row .confirm-value {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 1rem;
+}
+
+.bulk-restock-confirm-row .confirm-value.total-cost {
+    font-size: 1.25rem;
+    color: var(--primary);
+}
+
+.bulk-restock-confirm-row .confirm-value.warning {
+    color: var(--danger);
+}
+
+.bulk-restock-confirm-product-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+}
+
+.bulk-restock-confirm-product-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.65rem;
+    background-color: rgba(56, 189, 248, 0.08);
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.bulk-restock-confirm-product-chip .chip-price {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.bulk-restock-confirm-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 0.75rem 0;
 }
 
 /* Stock trend chart */
@@ -1077,6 +2374,22 @@ body.theme-dark .stock-chart-container {
     font-family: inherit;
 }
 
+.chart-candle-label {
+    fill: #ffffff !important;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    font-family: inherit;
+}
+
+.chart-val-label {
+    fill: var(--text-main);
+    font-size: 9px;
+    font-weight: 600;
+    font-family: inherit;
+}
+
 /* Stock history summary row */
 .history-summary tr {
     font-weight: 600;
@@ -1112,6 +2425,15 @@ body.theme-dark .stock-chart-container {
 
 .history-summary .summary-restocked strong {
     color: var(--secondary);
+}
+
+/* Stock history row left border accents */
+.history-row--sold {
+    border-left: 3px solid var(--danger) !important;
+}
+
+.history-row--restocked {
+    border-left: 3px solid var(--secondary) !important;
 }
 
 /* Stock history pagination */

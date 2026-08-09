@@ -17,9 +17,41 @@ const InvoiceManager = {
             const products = await window.appDB.getAll('products');
             document.getElementById('stat-products').textContent = products.length;
             const lowStockCount = products.filter(p => p.stockQty <= p.lowStockThreshold).length;
+            const outOfStockCount = products.filter(p => p.stockQty <= 0).length;
+            const lowStockCard = document.getElementById('stat-low-stock').closest('.stat-card');
             const lowStockEl = document.getElementById('stat-low-stock');
-            lowStockEl.textContent = lowStockCount;
-            lowStockEl.style.color = lowStockCount > 0 ? 'var(--danger)' : 'var(--secondary)';
+            
+            // Approaching low stock count (above threshold but within 5 units)
+            const approachingLowCount = products.filter(p => {
+                const isLow = p.stockQty <= p.lowStockThreshold;
+                return !isLow && p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold + 5;
+            }).length;
+            const approachingLowCard = document.getElementById('stat-approaching-low')?.closest('.stat-card');
+            const approachingLowEl = document.getElementById('stat-approaching-low');
+            
+            if (approachingLowEl) {
+                if (approachingLowCount > 0) {
+                    approachingLowEl.innerHTML = `<span class="low-stock-badge badge-warning">${approachingLowCount}</span>`;
+                    if (approachingLowCard) approachingLowCard.classList.add('stat-approaching-low-stock');
+                } else {
+                    approachingLowEl.innerHTML = `<span class="low-stock-badge badge-success">0</span>`;
+                    if (approachingLowCard) approachingLowCard.classList.remove('stat-approaching-low-stock');
+                }
+            }
+            
+            // Apply animated badge and card class
+            // Sidebar nav low-stock indicator dot
+            const navDot = document.querySelector('.nav-low-stock-dot');
+            
+            if (lowStockCount > 0) {
+                lowStockCard.classList.add('stat-low-stock');
+                lowStockEl.innerHTML = `<span class="low-stock-badge badge-danger">${lowStockCount}</span>${outOfStockCount > 0 ? '<span class="low-stock-dot" title="' + outOfStockCount + ' out of stock"></span>' : ''}`;
+                if (navDot) { navDot.style.display = 'inline-block'; navDot.title = lowStockCount + ' low stock product' + (lowStockCount !== 1 ? 's' : ''); }
+            } else {
+                lowStockCard.classList.remove('stat-low-stock');
+                lowStockEl.innerHTML = `<span class="low-stock-badge badge-success">0</span>`;
+                if (navDot) { navDot.style.display = 'none'; }
+            }
 
             // Monthly stock changes from history
             if (window.StockHistoryManager) {
@@ -66,14 +98,24 @@ const InvoiceManager = {
 
         list.forEach(inv => {
             const tr = document.createElement('tr');
+            
+            // Add class and data attributes for tooltip
+            tr.classList.add('invoice-history-row');
+            tr.dataset.invoiceDate = Utils.formatDate(inv.date);
+            tr.dataset.invoiceNumber = inv.number;
+            tr.dataset.invoiceCustomer = this.escapeHTML(inv.customer.name);
+            tr.dataset.invoiceTotal = Utils.formatCurrency(inv.grandTotal);
+            tr.dataset.invoiceItems = inv.items.length + ' item' + (inv.items.length !== 1 ? 's' : '');
+            
             tr.innerHTML = `
                 <td>${Utils.formatDate(inv.date)}</td>
                 <td>${inv.number}</td>
                 <td>${this.escapeHTML(inv.customer.name)}</td>
                 <td><strong>${Utils.formatCurrency(inv.grandTotal)}</strong></td>
                 <td>
-                    <button class="btn btn-outline btn-sm" onclick="InvoiceManager.viewInvoice('${inv.id}')">View</button>
-                    <button class="btn btn-danger btn-sm" onclick="InvoiceManager.deleteInvoice('${inv.id}')">Del</button>
+                    <button class="btn btn-outline btn-sm view-invoice-btn" onclick="InvoiceManager.viewInvoice('${inv.id}')">View</button>
+                    <button class="btn btn-outline btn-sm print-invoice-btn" onclick="InvoiceManager.printSavedInvoice('${inv.id}')">Print</button>
+                    <button class="btn btn-danger btn-sm delete-invoice-btn" onclick="InvoiceManager.deleteInvoice('${inv.id}')">Del</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -108,10 +150,9 @@ const InvoiceManager = {
             this.saveInvoice();
         });
 
-        // Print Invoice
+        // Print Invoice in a new tab
         document.getElementById('btn-print-invoice').addEventListener('click', () => {
-            this.preparePrint();
-            window.print();
+            this.printInvoiceInNewTab();
         });
 
         // Autocomplete click outside to close
@@ -177,7 +218,10 @@ const InvoiceManager = {
             <td data-label="Company"><input type="text" class="form-control item-company" placeholder="—" readonly tabindex="-1"></td>
             <td data-label="Variant"><input type="text" class="form-control item-variant" placeholder="—" readonly tabindex="-1"></td>
             <td data-label="Qty"><input type="number" class="form-control item-qty" value="1" min="1"></td>
-            <td data-label="Stock at Billing" class="item-stock-billing">—</td>
+            <td data-label="Stock at Billing" class="item-stock-billing">
+                <span class="stock-value">—</span>
+                <div class="row-low-stock-warning" style="display:none;"></div>
+            </td>
             <td data-label="Price (₹)"><input type="number" class="form-control item-price" value="0" step="0.01" readonly tabindex="-1"></td>
             <td data-label="GST %"><input type="number" class="form-control item-gst" value="0" step="0.1" readonly tabindex="-1"></td>
             <td data-label="Discount (₹)"><input type="number" class="form-control item-discount" value="0" step="0.01" readonly tabindex="-1"></td>
@@ -301,6 +345,8 @@ const InvoiceManager = {
                             this.calculateTotals();
                             // Check stock warning immediately with the default qty of 1
                             await this.checkRowStock(row);
+                            // Also check low stock status
+                            await this._updateRowLowStockIndicator(row);
                             // Move focus to qty so user can set quantity next
                             qtyInput.focus();
                             qtyInput.select();
@@ -423,6 +469,169 @@ const InvoiceManager = {
         }
     },
 
+    async _updateRowLowStockIndicator(row) {
+        const productId = row.querySelector('.item-product-id').value;
+        const warningEl = row.querySelector('.row-low-stock-warning');
+        if (!productId || !warningEl) {
+            if (warningEl) { warningEl.style.display = 'none'; warningEl.innerHTML = ''; }
+            return;
+        }
+
+        const product = await window.appDB.get('products', productId);
+        if (!product) {
+            warningEl.style.display = 'none';
+            warningEl.innerHTML = '';
+            return;
+        }
+
+        const isLow = product.stockQty <= product.lowStockThreshold;
+        
+        // Add/remove low-stock / enough-stock classes on the row itself
+        row.classList.toggle('invoice-row--low-stock', isLow);
+        row.classList.toggle('invoice-row--enough-stock', !isLow && product.stockQty > product.lowStockThreshold);
+
+        if (isLow) {
+            const qtyInput = row.querySelector('.item-qty');
+            const requestedQty = parseFloat(qtyInput?.value) || 1;
+            const isInsufficient = requestedQty > product.stockQty;
+            const status = product.stockQty <= 0 ? 'Out of Stock' : 'Low Stock';
+            const statusClass = product.stockQty <= 0 ? 'text-error' : 'text-warning';
+
+            warningEl.innerHTML = `
+                <div class="low-stock-indicator">
+                    <span class="low-stock-icon ${statusClass}">⚠️</span>
+                    <span class="low-stock-msg ${statusClass}">
+                        <strong>${status}:</strong> ${product.stockQty} remaining (threshold: ${product.lowStockThreshold})
+                    </span>
+                    <button class="btn-restock-inline btn btn-outline btn-sm">+ Restock</button>
+                    <div class="quick-restock-panel" style="display:none;">
+                        <div class="quick-restock-row">
+                            <input type="number" class="quick-restock-qty form-control" value="10" min="1" style="width:60px;padding:0.3rem;">
+                            <div class="restock-presets" style="display:inline-flex;gap:0.25rem;">
+                                <button class="restock-preset-btn" data-qty="5">+5</button>
+                                <button class="restock-preset-btn" data-qty="10">+10</button>
+                                <button class="restock-preset-btn" data-qty="25">+25</button>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-confirm-quick-restock" title="Confirm Restock">✓</button>
+                            <button class="btn btn-outline btn-sm btn-cancel-quick-restock" title="Cancel">✕</button>
+                        </div>
+                        <div class="quick-restock-preview" style="font-size:0.75rem;color:var(--secondary);margin-top:0.25rem;"></div>
+                    </div>
+                </div>
+            `;
+            warningEl.style.display = 'block';
+
+            // Bind events on the newly created elements
+            this._bindQuickRestockEvents(row, warningEl, product);
+        } else {
+            warningEl.style.display = 'none';
+            warningEl.innerHTML = '';
+        }
+    },
+
+    _bindQuickRestockEvents(row, warningEl, product) {
+        const restockBtn = warningEl.querySelector('.btn-restock-inline');
+        const panel = warningEl.querySelector('.quick-restock-panel');
+        const qtyInput = warningEl.querySelector('.quick-restock-qty');
+        const confirmBtn = warningEl.querySelector('.btn-confirm-quick-restock');
+        const cancelBtn = warningEl.querySelector('.btn-cancel-quick-restock');
+        const previewEl = warningEl.querySelector('.quick-restock-preview');
+
+        if (!restockBtn || !panel) return;
+
+        // Toggle the restock panel
+        const showPanel = (show) => {
+            panel.style.display = show ? 'block' : 'none';
+            if (show) {
+                qtyInput.focus();
+                qtyInput.select();
+                this._updateQuickRestockPreview(qtyInput, previewEl);
+            }
+        };
+
+        // Elements are brand new from innerHTML, so addEventListener is safe
+        restockBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPanel(true);
+        });
+
+        cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPanel(false);
+        });
+
+        // Preset buttons
+        panel.querySelectorAll('.restock-preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const qty = parseInt(btn.dataset.qty, 10);
+                if (!isNaN(qty) && qty > 0) {
+                    qtyInput.value = qty;
+                    this._updateQuickRestockPreview(qtyInput, previewEl);
+                }
+            });
+        });
+
+        // Manual input preview
+        qtyInput.addEventListener('input', () => {
+            this._updateQuickRestockPreview(qtyInput, previewEl);
+        });
+
+        // Enter key to confirm
+        qtyInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this._confirmQuickRestock(row, product, qtyInput, panel, previewEl);
+            }
+        });
+
+        // Confirm button
+        confirmBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._confirmQuickRestock(row, product, qtyInput, panel, previewEl);
+        });
+    },
+
+    _updateQuickRestockPreview(qtyInput, previewEl) {
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            previewEl.textContent = '';
+            return;
+        }
+        previewEl.textContent = `Will add +${qty} units`;
+    },
+
+    async _confirmQuickRestock(row, product, qtyInput, panel, previewEl) {
+        const qty = parseInt(qtyInput.value, 10);
+        if (isNaN(qty) || qty <= 0) {
+            Utils.showToast('Enter a valid positive number.', 'error');
+            return;
+        }
+
+        // Call the shared InventoryManager helper
+        const result = await window.InventoryManager._applySingleRestock(product.id, null, qty);
+        
+        if (result.success) {
+            panel.style.display = 'none';
+            // Refresh the row's stock cell — product.stockQty is stale, so compute new value
+            const stockCell = row.querySelector('.item-stock-billing .stock-value');
+            const newStock = result.prod ? result.prod.stockQty : (product.stockQty + qty);
+            if (stockCell) {
+                stockCell.textContent = newStock;
+            }
+            // Update the passed-in product object for subsequent indicator calls
+            product.stockQty = newStock;
+            // Re-check indicators (checkRowStock handles display, then low stock check)
+            await this.checkRowStock(row);
+            await this._updateRowLowStockIndicator(row);
+            // Refresh dashboard stats & inventory
+            await this.renderDashboardStats();
+            if (window.InventoryManager) {
+                window.InventoryManager.loadInventory();
+            }
+            Utils.showToast(`Restocked +${qty} of "${product.name}"`, 'success');
+        }
+    },
+
     _clearRowWarnings(row) {
         // Cancel any pending debounced toast for this row
         if (this._stockToastTimers[row.id]) {
@@ -437,6 +646,11 @@ const InvoiceManager = {
         if (qtyInput) qtyInput.style.borderColor = '';
         // Remove row highlight
         row.classList.remove('row-stock-warning');
+        // Clear low stock indicator and remove class for hover glow
+        const lowStockEl = row.querySelector('.row-low-stock-warning');
+        if (lowStockEl) { lowStockEl.style.display = 'none'; lowStockEl.innerHTML = ''; }
+        row.classList.remove('invoice-row--low-stock');
+        row.classList.remove('invoice-row--enough-stock');
     },
 
     calculateRowTotal(row) {
@@ -751,19 +965,366 @@ const InvoiceManager = {
         }
     },
 
-    preparePrint() {
-        // Populate the print-only header with profile details
-        const header = document.getElementById('print-header');
-        const p = window.ProfileManager.profileData;
+    printSavedInvoice(id) {
+        const inv = this.invoices.find(i => i.id === id);
+        if (!inv) {
+            Utils.showToast("Invoice not found", "error");
+            return;
+        }
+        this.printInvoiceInNewTab(inv);
+    },
+
+    printInvoiceInNewTab(invData = null) {
+        let inv = invData;
+        if (!inv) {
+            // Read current invoice from billing form
+            const custName = document.getElementById('cust-name').value.trim() || 'Valued Customer';
+            const custPhone = document.getElementById('cust-phone').value.trim();
+            const custEmail = document.getElementById('cust-email').value.trim();
+            const custAddress = document.getElementById('cust-address').value.trim();
+            const invDate = document.getElementById('inv-date').value || new Date().toISOString().split('T')[0];
+            let invNumber = document.getElementById('inv-number').value.trim() || 'DRAFT';
+
+            const rows = document.querySelectorAll('#invoice-items-body tr');
+            const items = [];
+            rows.forEach(row => {
+                const nameInput = row.querySelector('.product-search-input').value.trim();
+                if (nameInput) {
+                    items.push({
+                        name: nameInput,
+                        company: row.querySelector('.item-company').value.trim(),
+                        variant: row.querySelector('.item-variant').value.trim(),
+                        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+                        price: parseFloat(row.querySelector('.item-price').value) || 0,
+                        gstPercent: parseFloat(row.querySelector('.item-gst').value) || 0,
+                        discount: parseFloat(row.querySelector('.item-discount').value) || 0,
+                        total: parseFloat(row.dataset.finalTotal) || 0
+                    });
+                }
+            });
+
+            if (items.length === 0) {
+                Utils.showToast("Cannot print an empty invoice. Please add at least one line item.", "warning");
+                return;
+            }
+
+            inv = {
+                date: invDate,
+                number: invNumber,
+                customer: {
+                    name: custName,
+                    phone: custPhone,
+                    email: custEmail,
+                    address: custAddress
+                },
+                items: items,
+                subtotal: document.getElementById('summ-subtotal').textContent,
+                gst: document.getElementById('summ-gst').textContent,
+                itemDiscount: document.getElementById('summ-item-discount').textContent,
+                invDiscount: document.getElementById('summ-inv-discount').textContent,
+                grandTotal: document.getElementById('summ-total').textContent
+            };
+        }
+
+        const p = (window.ProfileManager && window.ProfileManager.profileData) || {};
         const shape = p.logoShape || 'banner';
-        
-        header.innerHTML = `
-            ${p.logo ? `<img src="${p.logo}" class="logo-shape-${shape}" alt="Logo">` : ''}
-            <h1>${this.escapeHTML(p.name)}</h1>
-            <p>${this.escapeHTML(p.address).replace(/\n/g, '<br>')}</p>
-            ${p.phone ? `<p>Phone: ${this.escapeHTML(p.phone)}</p>` : ''}
-            ${p.gstin ? `<p>GSTIN: ${this.escapeHTML(p.gstin)}</p>` : ''}
-        `;
+        const showLogo = p.printLogo !== false && p.logo;
+
+        // Build item rows HTML
+        let itemsHtml = '';
+        inv.items.forEach((item, index) => {
+            const itemTotalStr = item.total !== undefined ? Utils.formatCurrency(item.total) : Utils.formatCurrency(item.qty * item.price);
+            itemsHtml += `
+                <tr>
+                    <td style="text-align:center; color:#000;">${index + 1}</td>
+                    <td style="color:#000;"><strong>${this.escapeHTML(item.name)}</strong></td>
+                    <td style="color:#000;">${this.escapeHTML(item.company || '-')}</td>
+                    <td style="color:#000;">${this.escapeHTML(item.variant || '-')}</td>
+                    <td style="text-align:center; color:#000;">${item.qty}</td>
+                    <td style="text-align:right; color:#000;">${Utils.formatCurrency(item.price)}</td>
+                    <td style="text-align:center; color:#000;">${item.gstPercent || 0}%</td>
+                    <td style="text-align:right; color:#000;">${item.discount ? Utils.formatCurrency(item.discount) : '-'}</td>
+                    <td style="text-align:right; font-weight:600; color:#000;">${itemTotalStr}</td>
+                </tr>
+            `;
+        });
+
+        // Resolve summary totals
+        const subtotal = inv.subtotal || Utils.formatCurrency(inv.items.reduce((s, i) => s + (i.qty * i.price), 0));
+        const gst = inv.gst || Utils.formatCurrency(inv.items.reduce((s, i) => s + ((i.qty * i.price - (i.discount || 0)) * ((i.gstPercent || 0)/100)), 0));
+        const itemDiscount = inv.itemDiscount || Utils.formatCurrency(inv.items.reduce((s, i) => s + (i.discount || 0), 0));
+        const invDiscount = inv.invDiscount !== undefined ? (typeof inv.invDiscount === 'number' ? Utils.formatCurrency(inv.invDiscount) : inv.invDiscount) : '-₹0.00';
+        const grandTotal = inv.grandTotal !== undefined ? (typeof inv.grandTotal === 'number' ? Utils.formatCurrency(inv.grandTotal) : inv.grandTotal) : subtotal;
+
+        const logoHtml = showLogo ? `<img src="${p.logo}" class="logo-shape-${shape}" alt="Logo" style="max-height: 70px; width: auto; object-fit: contain; margin-bottom: 8px;">` : '';
+
+        const printableHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice #${this.escapeHTML(inv.number)}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 5mm;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Inter', Arial, Helvetica, sans-serif;
+            color: #000000 !important;
+            background: #ffffff !important;
+            padding: 16px;
+            font-size: 12px;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .invoice-card {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            color: #000000;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .biz-info {
+            max-width: 60%;
+        }
+        .biz-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #000000 !important;
+            margin-bottom: 4px;
+        }
+        .biz-sub {
+            font-size: 11px;
+            color: #111111 !important;
+            line-height: 1.4;
+        }
+        .inv-title-block {
+            text-align: right;
+        }
+        .inv-badge {
+            font-size: 24px;
+            font-weight: 800;
+            color: #000000 !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .inv-meta-text {
+            font-size: 12px;
+            color: #111111 !important;
+            margin-top: 4px;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .detail-box {
+            border: 1px solid #bbbbbb;
+            padding: 10px 12px;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        .detail-title {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #333333 !important;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+        .detail-content {
+            font-size: 12px;
+            color: #000000 !important;
+            line-height: 1.4;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+        .items-table th {
+            background-color: #f1f5f9;
+            color: #000000 !important;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            padding: 8px 6px;
+            border: 1px solid #94a3b8;
+        }
+        .items-table td {
+            padding: 8px 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 11px;
+            color: #000000 !important;
+        }
+        .totals-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 24px;
+        }
+        .totals-table {
+            width: 300px;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 5px 8px;
+            font-size: 12px;
+            color: #000000 !important;
+        }
+        .totals-table tr.grand-row {
+            font-weight: 700;
+            font-size: 14px;
+            border-top: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            background-color: #f8fafc;
+        }
+        .totals-table tr.grand-row td {
+            padding: 8px;
+            color: #000000 !important;
+        }
+        .invoice-footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 11px;
+            color: #444444 !important;
+            border-top: 1px solid #dddddd;
+            padding-top: 12px;
+        }
+        .logo-shape-banner { max-width: 220px; max-height: 70px; object-fit: contain; }
+        .logo-shape-circle { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
+        .logo-shape-square { width: 70px; height: 70px; border-radius: 6px; object-fit: cover; }
+
+        @media print {
+            body { padding: 0; }
+            .invoice-card { max-width: 100%; border: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-card">
+        <div class="header-row">
+            <div class="biz-info">
+                ${logoHtml}
+                <div class="biz-name">${this.escapeHTML(p.name || 'Ease Invoice')}</div>
+                <div class="biz-sub">
+                    ${p.address ? this.escapeHTML(p.address).replace(/\n/g, '<br>') : ''}<br>
+                    ${p.phone ? 'Phone: ' + this.escapeHTML(p.phone) + '<br>' : ''}
+                    ${p.gstin ? 'GSTIN: ' + this.escapeHTML(p.gstin) : ''}
+                </div>
+            </div>
+            <div class="inv-title-block">
+                <div class="inv-badge">TAX INVOICE</div>
+                <div class="inv-meta-text"><strong>Invoice #:</strong> ${this.escapeHTML(inv.number)}</div>
+                <div class="inv-meta-text"><strong>Date:</strong> ${Utils.formatDate(inv.date)}</div>
+            </div>
+        </div>
+
+        <div class="details-grid">
+            <div class="detail-box">
+                <div class="detail-title">Billed To</div>
+                <div class="detail-content">
+                    <strong>${this.escapeHTML(inv.customer.name)}</strong><br>
+                    ${inv.customer.phone ? 'Phone: ' + this.escapeHTML(inv.customer.phone) + '<br>' : ''}
+                    ${inv.customer.email ? 'Email: ' + this.escapeHTML(inv.customer.email) + '<br>' : ''}
+                    ${inv.customer.address ? this.escapeHTML(inv.customer.address) : ''}
+                </div>
+            </div>
+            <div class="detail-box">
+                <div class="detail-title">Invoice Details</div>
+                <div class="detail-content">
+                    <strong>Invoice #:</strong> ${this.escapeHTML(inv.number)}<br>
+                    <strong>Invoice Date:</strong> ${Utils.formatDate(inv.date)}<br>
+                    <strong>Status:</strong> Finalized
+                </div>
+            </div>
+        </div>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 35px;">#</th>
+                    <th>Item Description</th>
+                    <th style="width: 15%;">Company</th>
+                    <th style="width: 12%;">Variant</th>
+                    <th style="width: 50px; text-align: center;">Qty</th>
+                    <th style="width: 80px; text-align: right;">Price</th>
+                    <th style="width: 50px; text-align: center;">GST</th>
+                    <th style="width: 70px; text-align: right;">Disc.</th>
+                    <th style="width: 90px; text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${itemsHtml}
+            </tbody>
+        </table>
+
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr>
+                    <td>Subtotal:</td>
+                    <td style="text-align: right;">${subtotal}</td>
+                </tr>
+                <tr>
+                    <td>GST Amount:</td>
+                    <td style="text-align: right;">${gst}</td>
+                </tr>
+                <tr>
+                    <td>Item Discounts:</td>
+                    <td style="text-align: right;">${itemDiscount}</td>
+                </tr>
+                <tr>
+                    <td>Invoice Discount:</td>
+                    <td style="text-align: right;">${invDiscount}</td>
+                </tr>
+                <tr class="grand-row">
+                    <td>Grand Total:</td>
+                    <td style="text-align: right;">${grandTotal}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="invoice-footer">
+            Thank you for your business!
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.print();
+            }, 300);
+        });
+    </script>
+</body>
+</html>`;
+
+        const printWin = window.open('', '_blank');
+        if (printWin) {
+            printWin.document.open();
+            printWin.document.write(printableHTML);
+            printWin.document.close();
+            printWin.focus();
+        } else {
+            Utils.showToast("Pop-up blocked! Please allow pop-ups for this site to open the print tab.", "warning");
+        }
+    },
+
+    preparePrint() {
+        // Legacy fallback
     },
 
     escapeHTML(str) {

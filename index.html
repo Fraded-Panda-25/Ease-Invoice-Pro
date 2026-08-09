@@ -76,6 +76,7 @@
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
             Inventory
+            <span class="nav-low-stock-dot" style="display:none;" title="Low stock products"></span>
           </a>
           <a href="#settings" class="nav-link" data-target="view-settings">
             <svg
@@ -244,21 +245,25 @@
 
             <!-- Dashboard Stats Cards -->
             <div id="dashboard-stats" class="stats-grid no-print">
-              <div class="stat-card">
+              <div class="stat-card" data-action="inventory">
                 <span class="stat-label">Products</span>
                 <span class="stat-value" id="stat-products">—</span>
               </div>
-              <div class="stat-card">
+              <div class="stat-card" data-action="sales-history">
                 <span class="stat-label">Sold This Month</span>
                 <span class="stat-value" id="stat-sold">—</span>
               </div>
-              <div class="stat-card">
+              <div class="stat-card" data-action="restock-history">
                 <span class="stat-label">Restocked This Month</span>
                 <span class="stat-value" id="stat-restocked">—</span>
               </div>
-              <div class="stat-card">
+              <div class="stat-card" data-action="low-stock">
                 <span class="stat-label">Low Stock Items</span>
                 <span class="stat-value" id="stat-low-stock">—</span>
+              </div>
+              <div class="stat-card" data-action="approaching-low-stock">
+                <span class="stat-label">⚠ Approaching Low Stock</span>
+                <span class="stat-value" id="stat-approaching-low">—</span>
               </div>
             </div>
 
@@ -303,6 +308,32 @@
           </header>
 
           <div class="view-body">
+            <!-- Inventory Restock Panel -->
+            <div id="inventory-restock-panel" class="inline-restock-panel" style="display:none; margin-bottom: 1rem;">
+              <div class="inline-restock-header">
+                <span class="inline-restock-title">+ Restock: <strong id="inv-restock-product-name"></strong></span>
+                <button class="btn btn-sm btn-outline" id="btn-cancel-inv-restock">✕ Cancel</button>
+              </div>
+              <div class="inline-restock-form">
+                <div class="inline-restock-info">
+                  <span>Current Stock: <strong id="inv-restock-current-stock"></strong></span>
+                </div>
+                <div class="inline-restock-input-row">
+                  <label for="inv-restock-qty-input">Quantity to add:</label>
+                  <input type="number" id="inv-restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
+                  <button class="btn btn-secondary btn-sm" id="btn-confirm-inv-restock">Confirm Restock</button>
+                </div>
+                <div class="restock-presets">
+                  <button class="restock-preset-btn" data-qty="5" data-target="inv-restock-qty-input">+5</button>
+                  <button class="restock-preset-btn" data-qty="10" data-target="inv-restock-qty-input">+10</button>
+                  <button class="restock-preset-btn" data-qty="25" data-target="inv-restock-qty-input">+25</button>
+                  <button class="restock-preset-btn" data-qty="50" data-target="inv-restock-qty-input">+50</button>
+                  <button class="restock-preset-btn" data-qty="100" data-target="inv-restock-qty-input">+100</button>
+                </div>
+                <div class="inline-restock-preview" id="inv-restock-preview"></div>
+              </div>
+            </div>
+
             <!-- Product Form Modal/Section -->
             <div
               id="product-editor"
@@ -381,6 +412,22 @@
               <button class="btn btn-outline btn-sm" onclick="InventoryManager.showAllHistory()">📋 Full History</button>
             </div>
 
+            <div class="inventory-color-legend">
+              <span class="legend-label">Border Colors:</span>
+              <span class="legend-item legend-item--danger">
+                <span class="legend-swatch"></span>
+                Low Stock
+              </span>
+              <span class="legend-item legend-item--warning">
+                <span class="legend-swatch"></span>
+                Approaching Low
+              </span>
+              <span class="legend-item legend-item--primary">
+                <span class="legend-swatch"></span>
+                Sufficient Stock
+              </span>
+            </div>
+
             <div class="table-responsive">
               <table class="data-table" id="inventory-table">
                 <thead>
@@ -451,10 +498,62 @@
                     <option value="square">Square / Rounded Box</option>
                   </select>
                 </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                  <label class="toggle-label">
+                    <input type="checkbox" id="biz-print-logo" checked>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">Show logo on final invoice</span>
+                  </label>
+                </div>
                 <button type="submit" class="btn btn-primary">
                   Save Profile
                 </button>
               </form>
+            </div>
+
+            <div class="card">
+              <h3 class="section-title">✨ Hover Effects</h3>
+              <p class="text-muted" style="margin-bottom:1rem;">
+                Adjust the glow intensity when hovering over items.
+              </p>
+              <div class="form-group">
+                <label class="glow-intensity-label">
+                  <span>Normal items (blue glow)</span>
+                  <span class="glow-intensity-value" id="glow-normal-value">25%</span>
+                </label>
+                <input type="range" id="glow-normal-intensity" class="glow-intensity-slider" min="0" max="100" value="25">
+              </div>
+              <div class="form-group">
+                <label class="glow-intensity-label">
+                  <span>Low-stock items (red glow)</span>
+                  <span class="glow-intensity-value" id="glow-lowstock-value">35%</span>
+                </label>
+                <input type="range" id="glow-lowstock-intensity" class="glow-intensity-slider" min="0" max="100" value="35">
+              </div>
+              <p class="text-muted" style="font-size:0.8rem; margin-top:0.5rem;">
+                💡 Set to 0% to disable the glow effect.
+              </p>
+              <div class="form-group" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+                <label class="toggle-label">
+                  <input type="checkbox" id="toggle-pulsing-border" checked>
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-text">Show pulsing border on low-stock items</span>
+                </label>
+              </div>
+              <div class="form-group" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+                <label style="font-size:0.85rem; font-weight:500; color:var(--text-muted); display:block; margin-bottom:0.5rem;">Pulsing border speed</label>
+                <div class="speed-picker" id="pulsing-speed-picker">
+                  <input type="radio" name="pulsing-speed" id="speed-slow" value="slow">
+                  <label for="speed-slow" class="speed-picker-label">🐢 Slow</label>
+                  <input type="radio" name="pulsing-speed" id="speed-normal" value="normal">
+                  <label for="speed-normal" class="speed-picker-label">▶ Normal</label>
+                  <input type="radio" name="pulsing-speed" id="speed-fast" value="fast">
+                  <label for="speed-fast" class="speed-picker-label">🐇 Fast</label>
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border-color); text-align:center;">
+                <button class="btn btn-outline btn-sm" id="btn-reset-visual-settings" style="width:100%;">↺ Reset all settings to defaults</button>
+              </div>
             </div>
 
             <div class="card">
@@ -563,7 +662,15 @@
               </select>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-clear-history-filter" style="align-self:flex-end;">Clear</button>
-            <button class="btn btn-outline btn-sm" id="btn-export-history-csv" style="align-self:flex-end;">📥 CSV</button>
+            <div class="download-dropdown" id="download-dropdown" style="align-self:flex-end; position:relative;">
+              <button class="btn btn-outline btn-sm" id="btn-download-dropdown-toggle">📥 Download ▾</button>
+              <div class="download-dropdown-menu" id="btn-download-dropdown-menu" style="display:none;">
+                <button class="download-dropdown-item" id="btn-export-history-xlsx">📊 Export as XLSX</button>
+                <button class="download-dropdown-item" id="btn-export-history-pdf">📄 Export as PDF</button>
+                <button class="download-dropdown-item" id="btn-export-history-svg">📈 Export Chart as SVG</button>
+                <button class="download-dropdown-item" id="btn-export-history-csv">📋 Export as CSV</button>
+              </div>
+            </div>
           </div>
           <!-- History table populated dynamically -->
           <div id="stock-history-content">
@@ -572,6 +679,106 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="document.getElementById('stock-history-modal').style.display='none'">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Low Stock Items Modal -->
+    <div id="low-stock-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-card" style="max-width:800px;">
+        <div class="modal-header">
+          <h3 class="modal-title">⚠️ Low Stock Items <span id="low-stock-count" class="badge badge-danger" style="font-size:0.8rem; margin-left:0.5rem;">0</span></h3>
+          <button class="btn btn-sm btn-outline modal-close-btn" onclick="document.getElementById('low-stock-modal').style.display='none'; InventoryManager._resetBulkSelection(); document.getElementById('bulk-restock-panel').style.display='none';">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Inline Restock Panel (hidden by default) -->
+          <div id="inline-restock-panel" class="inline-restock-panel" style="display:none;">
+            <div class="inline-restock-header">
+              <span class="inline-restock-title">+ Restock: <strong id="restock-product-name"></strong></span>
+              <button class="btn btn-sm btn-outline" id="btn-cancel-restock">✕ Cancel</button>
+            </div>
+            <div class="inline-restock-form">
+              <div class="inline-restock-info">
+                <span>Current Stock: <strong id="restock-current-stock"></strong></span>
+                <span>Threshold: <strong id="restock-threshold"></strong></span>
+              </div>
+              <div class="inline-restock-input-row">
+                <label for="restock-qty-input">Quantity to add:</label>
+                <input type="number" id="restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
+                <button class="btn btn-secondary btn-sm" id="btn-confirm-restock">Confirm Restock</button>
+              </div>
+              <div class="restock-presets">
+                <button class="restock-preset-btn" data-qty="5">+5</button>
+                <button class="restock-preset-btn" data-qty="10">+10</button>
+                <button class="restock-preset-btn" data-qty="25">+25</button>
+                <button class="restock-preset-btn" data-qty="50">+50</button>
+                <button class="restock-preset-btn" data-qty="100">+100</button>
+              </div>
+              <div class="inline-restock-preview" id="restock-preview"></div>
+            </div>
+          </div>
+          <!-- Bulk Restock Panel (hidden by default) -->
+          <div id="bulk-restock-panel" class="bulk-restock-panel" style="display:none;">
+            <div class="bulk-restock-header">
+              <span class="bulk-restock-title">📦 Bulk Restock — <strong id="bulk-selected-count">0</strong> items selected</span>
+              <button class="btn btn-sm btn-outline" id="btn-cancel-bulk-restock">✕ Cancel</button>
+            </div>
+            <div class="bulk-restock-form">
+              <div class="bulk-restock-input-row">
+                <label for="bulk-restock-qty-input">Quantity to add per item:</label>
+                <input type="number" id="bulk-restock-qty-input" min="1" value="10" class="form-control" style="width:100px;">
+                <button class="btn btn-primary btn-sm" id="btn-confirm-bulk-restock">Restock All Selected</button>
+              </div>
+              <div class="restock-presets">
+                <button class="restock-preset-btn" data-qty="5" data-target="bulk-restock-qty-input">+5</button>
+                <button class="restock-preset-btn" data-qty="10" data-target="bulk-restock-qty-input">+10</button>
+                <button class="restock-preset-btn" data-qty="25" data-target="bulk-restock-qty-input">+25</button>
+                <button class="restock-preset-btn" data-qty="50" data-target="bulk-restock-qty-input">+50</button>
+                <button class="restock-preset-btn" data-qty="100" data-target="bulk-restock-qty-input">+100</button>
+              </div>
+              <div class="bulk-restock-preview" id="bulk-restock-preview"></div>
+              <div class="bulk-restock-items" id="bulk-restock-items"></div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="low-stock-table">
+              <thead>
+                <tr>
+                  <th style="width:40px;"><input type="checkbox" id="bulk-select-all" title="Select all"></th>
+                  <th>Product</th>
+                  <th>Company</th>
+                  <th>Price</th>
+                  <th>Stock / Threshold</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="low-stock-body">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="document.getElementById('low-stock-modal').style.display='none'; InventoryManager._resetBulkSelection(); document.getElementById('bulk-restock-panel').style.display='none';">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Restock Confirmation Modal -->
+    <div id="bulk-restock-confirm-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-card" style="max-width:600px;">
+        <div class="modal-header">
+          <h3 class="modal-title">📦 Confirm Bulk Restock</h3>
+          <button class="btn btn-sm btn-outline modal-close-btn" onclick="document.getElementById('bulk-restock-confirm-modal').style.display='none'; InventoryManager._pendingBulkRestock = null;">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="bulk-restock-confirm-summary">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="document.getElementById('bulk-restock-confirm-modal').style.display='none'; InventoryManager._pendingBulkRestock = null;">Cancel</button>
+          <button class="btn btn-primary" id="btn-confirm-bulk-restock-execute">✅ Confirm & Execute</button>
         </div>
       </div>
     </div>
