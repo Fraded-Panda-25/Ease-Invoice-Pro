@@ -1072,17 +1072,8 @@ const InventoryManager = {
             const points = sorted.map(e => ({ date: e.date, value: e.remaining }));
             return this._buildLineChartSVG(points, 'Stock Level');
         } else {
-            // --- All products: Grouped bar chart — daily sold vs restocked ---
-            const daily = {};
-            sorted.forEach(e => {
-                if (!daily[e.date]) daily[e.date] = { sold: 0, restocked: 0 };
-                if (e.change < 0) daily[e.date].sold += Math.abs(e.change);
-                else daily[e.date].restocked += e.change;
-            });
-            const dates = Object.keys(daily);
-            const soldData = dates.map(d => daily[d].sold);
-            const restockedData = dates.map(d => daily[d].restocked);
-            return this._buildBarChartSVG(dates, soldData, restockedData);
+            // --- All products / Sales stock: Candle bar chart with vertical product names ---
+            return this._buildBarChartSVG(sorted);
         }
     },
 
@@ -1140,67 +1131,80 @@ const InventoryManager = {
         </div>`;
     },
 
-    _buildBarChartSVG(dates, soldData, restockedData) {
-        const W = 560, H = 140;
-        const PAD = { top: 12, right: 12, bottom: 28, left: 44 };
+    _buildBarChartSVG(entries) {
+        // Show up to 16 most recent entries chronologically for wide, readable candle bars
+        const chartEntries = entries.slice(-16);
+        const count = chartEntries.length;
+        if (count === 0) return '';
+
+        const W = 620, H = 190;
+        const PAD = { top: 24, right: 15, bottom: 32, left: 40 };
         const cw = W - PAD.left - PAD.right;
         const ch = H - PAD.top - PAD.bottom;
 
-        // Find max value for scaling (max of either sold or restocked)
-        const allValues = [...soldData, ...restockedData];
-        const maxVal = Math.max(...allValues, 1);
-        const barCount = dates.length;
-        const barWidth = Math.min(20, (cw / barCount) * 0.3);
-        const groupWidth = cw / barCount;
-
-        // Y-axis ticks (3 ticks)
+        // Determine maximum change magnitude for y-axis scaling
+        const maxVal = Math.max(...chartEntries.map(e => Math.abs(e.change)), 1);
         const ticks = [0, Math.round(maxVal / 2), maxVal];
-
         const yScale = (v) => PAD.top + ch - (v / maxVal) * ch;
 
+        const groupWidth = cw / count;
+        const barWidth = Math.min(32, Math.max(18, groupWidth * 0.75));
+
         let barsHtml = '';
-        dates.forEach((d, i) => {
-            const x = PAD.left + i * groupWidth + (groupWidth - barWidth * 2) / 2;
-            // Sold bar (red)
-            if (soldData[i] > 0) {
-                const barH = ch - yScale(soldData[i]) + PAD.top;
-                barsHtml += `<rect x="${x}" y="${yScale(soldData[i])}" width="${barWidth}" height="${barH}" class="chart-bar-sold"/>`;
+        chartEntries.forEach((e, i) => {
+            const isSold = e.change < 0;
+            const val = Math.abs(e.change);
+            const barH = Math.max(18, (ch + PAD.top) - yScale(val));
+            const x = PAD.left + i * groupWidth + (groupWidth - barWidth) / 2;
+            const y = PAD.top + ch - barH;
+            const centerX = x + barWidth / 2;
+            const centerY = y + barH / 2;
+
+            const barClass = isSold ? 'chart-bar-sold' : 'chart-bar-restocked';
+            
+            // Format product name to fit inside candle bar vertically
+            let prodName = e.productName || 'Product';
+            if (prodName.length > 15) {
+                prodName = prodName.slice(0, 14) + '…';
             }
-            // Restocked bar (green)
-            if (restockedData[i] > 0) {
-                const bx = x + barWidth;
-                const barH = ch - yScale(restockedData[i]) + PAD.top;
-                barsHtml += `<rect x="${bx}" y="${yScale(restockedData[i])}" width="${barWidth}" height="${barH}" class="chart-bar-restocked"/>`;
-            }
+
+            const tooltipText = `${this.escapeHTML(e.productName || 'Product')}\nType: ${isSold ? 'Sold' : 'Restocked'} (${e.change > 0 ? '+' : ''}${e.change})\nDate: ${Utils.formatDate(e.date)}${e.invoiceNumber ? '\nInvoice: ' + this.escapeHTML(e.invoiceNumber) : ''}`;
+
+            barsHtml += `
+                <g class="chart-candle-group" style="cursor:pointer;">
+                    <title>${tooltipText}</title>
+                    <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="3" class="${barClass}"/>
+                    <text x="${centerX}" y="${centerY}" 
+                          text-anchor="middle" 
+                          dominant-baseline="central" 
+                          transform="rotate(-90, ${centerX}, ${centerY})" 
+                          class="chart-candle-label">
+                        ${this.escapeHTML(prodName)}
+                    </text>
+                    <text x="${centerX}" y="${Math.max(12, y - 4)}" text-anchor="middle" class="chart-val-label">
+                        ${e.change > 0 ? '+' : ''}${e.change}
+                    </text>
+                    <text x="${centerX}" y="${H - 6}" text-anchor="middle" class="chart-x-label">
+                        ${Utils.formatDate(e.date).slice(0, 6)}
+                    </text>
+                </g>
+            `;
         });
 
-        // X-axis labels (show at most 5 labels evenly spaced)
-        const labelStep = Math.max(1, Math.floor(barCount / 5));
-        const dateLabelsHtml = dates
-            .filter((_, i) => i % labelStep === 0 || i === barCount - 1)
-            .map((d, i, arr) => {
-                // Find the original index for positioning
-                const idx = dates.indexOf(d);
-                const x = PAD.left + idx * groupWidth + groupWidth / 2;
-                return `<text x="${x}" y="${H - 4}" class="chart-x-label">${Utils.formatDate(d).slice(0, 6)}</text>`;
-            }).join('');
-
         return `<div class="stock-chart-container">
-            <div class="stock-chart-title">Daily Activity</div>
+            <div class="stock-chart-title">Stock Activity Chart (Product Names on Candles)</div>
             <svg viewBox="0 0 ${W} ${H}" class="stock-chart-svg">
                 <!-- Grid lines -->
                 ${ticks.map(v => `<line x1="${PAD.left}" y1="${yScale(v)}" x2="${W - PAD.right}" y2="${yScale(v)}" class="chart-gridline"/>`).join('')}
-                <!-- Bars -->
+                <!-- Candle Bars with Vertical Product Names -->
                 ${barsHtml}
-                <!-- Legend (inside SVG) -->
-                <rect x="${W - 100}" y="4" width="10" height="10" class="chart-bar-sold"/>
-                <text x="${W - 86}" y="12" class="chart-legend-text">Sold</text>
-                <rect x="${W - 52}" y="4" width="10" height="10" class="chart-bar-restocked"/>
-                <text x="${W - 38}" y="12" class="chart-legend-text">Restocked</text>
+                <!-- Legend -->
+                <rect x="${W - 110}" y="4" width="10" height="10" class="chart-bar-sold" rx="2"/>
+                <text x="${W - 96}" y="12" class="chart-legend-text">Sold</text>
+                <rect x="${W - 60}" y="4" width="10" height="10" class="chart-bar-restocked" rx="2"/>
+                <text x="${W - 46}" y="12" class="chart-legend-text">Restocked</text>
                 <!-- Y-axis labels -->
                 ${ticks.map(v => `<text x="${PAD.left - 6}" y="${yScale(v) + 4}" class="chart-y-label">${v}</text>`).join('')}
-                <!-- X-axis labels -->
-                ${dateLabelsHtml}
             </svg>
         </div>`;
     },
@@ -1459,6 +1463,8 @@ const InventoryManager = {
             .chart-bar-sold { fill: ${colorDanger}; opacity: 0.8; }
             .chart-bar-restocked { fill: ${colorSecondary}; opacity: 0.8; }
             .chart-y-label, .chart-x-label { fill: ${colorMuted}; font-size: 9px; }
+            .chart-candle-label { fill: #ffffff; font-size: 10px; font-weight: 600; }
+            .chart-val-label { fill: ${colorMuted}; font-size: 9px; font-weight: 600; }
             .chart-legend-text { fill: ${colorMuted}; font-size: 9px; }
         `;
         clone.insertBefore(style, clone.firstChild);

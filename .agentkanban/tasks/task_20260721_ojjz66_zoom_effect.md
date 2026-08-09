@@ -1,13 +1,14 @@
 ---
 title: Zoom effect
-lane: doing
+lane: done
 created: 2026-07-21T09:31:27.064Z
-updated: 2026-07-21T09:31:27.065Z
+updated: 2026-08-09T12:50:02.190Z
 priority: low
 assignee: Pritam Paul
-sortOrder: 2
-slug: zoom_effect
+sortOrder: 6
+slug: "zoom_effect\r"
 ---
+
 
 ## Conversation
 

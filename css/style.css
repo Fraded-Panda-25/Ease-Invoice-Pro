@@ -2374,6 +2374,22 @@ body.theme-dark .stock-chart-container {
     font-family: inherit;
 }
 
+.chart-candle-label {
+    fill: #ffffff !important;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    font-family: inherit;
+}
+
+.chart-val-label {
+    fill: var(--text-main);
+    font-size: 9px;
+    font-weight: 600;
+    font-family: inherit;
+}
+
 /* Stock history summary row */
 .history-summary tr {
     font-weight: 600;
