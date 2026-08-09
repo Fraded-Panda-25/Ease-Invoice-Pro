@@ -804,6 +804,40 @@ const InvoiceManager = {
 
             // Save Invoice
             await window.appDB.put('invoices', invoiceRecord);
+
+            // Auto-sync customer details to customers store
+            // (customer name is already validated non-empty above, so the record always has a valid name)
+            try {
+                const existingCusts = await window.appDB.getAll('customers');
+                const match = existingCusts.find(c => 
+                    c.name.trim().toLowerCase() === invoiceRecord.customer.name.trim().toLowerCase() ||
+                    (c.phone && invoiceRecord.customer.phone && c.phone.trim() === invoiceRecord.customer.phone.trim())
+                );
+
+                if (match) {
+                    match.phone = invoiceRecord.customer.phone ? invoiceRecord.customer.phone.trim() : match.phone;
+                    match.email = invoiceRecord.customer.email ? invoiceRecord.customer.email.trim() : match.email;
+                    match.address = invoiceRecord.customer.address ? invoiceRecord.customer.address.trim() : match.address;
+                    match.updatedAt = new Date().toISOString();
+                    await window.appDB.put('customers', match);
+                } else {
+                    const newCust = {
+                        id: Utils.generateUUID(),
+                        name: invoiceRecord.customer.name.trim(),
+                        phone: invoiceRecord.customer.phone ? invoiceRecord.customer.phone.trim() : '',
+                        email: invoiceRecord.customer.email ? invoiceRecord.customer.email.trim() : '',
+                        address: invoiceRecord.customer.address ? invoiceRecord.customer.address.trim() : '',
+                        createdAt: invoiceRecord.date || new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    await window.appDB.put('customers', newCust);
+                }
+                if (window.CustomersManager) {
+                    window.CustomersManager.loadCustomers();
+                }
+            } catch (custErr) {
+                console.error("Auto customer sync failed:", custErr);
+            }
             
             // --- Step 3: Deduct Stock for linked products, update last sold date & check low stock ---
             const lowStockItems = [];

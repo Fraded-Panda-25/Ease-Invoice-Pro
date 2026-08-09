@@ -51,6 +51,17 @@ const Utils = {
         if (!dateString) return '';
         const options = { year: 'numeric', month: 'short', day: 'numeric' };
         return new Date(dateString).toLocaleDateString('en-IN', options);
+    },
+
+    // Escape HTML (XSS prevention)
+    escapeHTML: function(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 };
 
