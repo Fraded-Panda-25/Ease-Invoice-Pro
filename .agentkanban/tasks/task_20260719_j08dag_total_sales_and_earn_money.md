@@ -1,12 +1,12 @@
 ---
 title: Total sales and earn money.
-lane: doing
+lane: todo
 created: 2026-07-19T10:53:21.288Z
-updated: 2026-08-09T12:58:42.074Z
+updated: 2026-08-09T13:09:45.874Z
 description: Add a total ammount of sales along with the product. Also show the total ammount I earned.
 priority: medium
 assignee: Pritam Paul
-sortOrder: 1
+sortOrder: 6
 slug: "total_sales_and_earn_money\r"
 ---
 
