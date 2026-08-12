@@ -165,6 +165,40 @@ const CustomersManager = {
         return list;
     },
 
+    showAllCustomers() {
+        // Reset to the "All Customers" filter and clear any active search
+        this.activeFilter = 'all';
+        this.searchQuery = '';
+        const searchInput = document.getElementById('customer-search-input');
+        if (searchInput) searchInput.value = '';
+        document.querySelectorAll('.customer-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+        });
+        this.renderCustomers();
+    },
+
+    showActiveBuyers() {
+        // Same semantics as the "Part time customer" filter: buyers with at least one invoice
+        this.activeFilter = 'part-time';
+        this.searchQuery = '';
+        const searchInput = document.getElementById('customer-search-input');
+        if (searchInput) searchInput.value = '';
+        document.querySelectorAll('.customer-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-filter') === 'part-time');
+        });
+        this.renderCustomers();
+    },
+
+    showTopBuyer() {
+        // Top buyer = highest total spend (customers list is pre-sorted by totalSpent desc)
+        const topBuyer = this.customers.find(c => c.totalSpent > 0);
+        if (!topBuyer) {
+            Utils.showToast('No buyers yet — top buyer unavailable.', 'warning');
+            return;
+        }
+        this.openPurchaseHistory(topBuyer.id);
+    },
+
     renderCustomers() {
         const tbody = document.getElementById('customers-table-body');
         if (!tbody) return;
@@ -283,6 +317,24 @@ const CustomersManager = {
     },
 
     bindEvents() {
+        // Total Customers stat card → reset to the "All Customers" view
+        const totalCustomersCard = document.querySelector('.stat-card[data-action="show-all-customers"]');
+        if (totalCustomersCard) {
+            totalCustomersCard.addEventListener('click', () => this.showAllCustomers());
+        }
+
+        // Active Buyers stat card → show only customers who have bought
+        const activeBuyersCard = document.querySelector('.stat-card[data-action="show-active-buyers"]');
+        if (activeBuyersCard) {
+            activeBuyersCard.addEventListener('click', () => this.showActiveBuyers());
+        }
+
+        // Top Buyer stat card → open the top buyer's purchase history
+        const topBuyerCard = document.querySelector('.stat-card[data-action="show-top-buyer"]');
+        if (topBuyerCard) {
+            topBuyerCard.addEventListener('click', () => this.showTopBuyer());
+        }
+
         // Search Input
         const searchInput = document.getElementById('customer-search-input');
         if (searchInput) {

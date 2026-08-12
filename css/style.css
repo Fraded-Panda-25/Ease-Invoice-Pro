@@ -164,7 +164,7 @@ body.sidebar-resizing {
 .main-nav {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 10px;
     flex-grow: 1;
 }
 
