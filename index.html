@@ -962,33 +962,33 @@
               </select>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-clear-history-filter" style="align-self:flex-end;">Clear</button>
-            <div class="dropdown" id="history-download-dropdown" style="align-self:flex-end; position:relative; display: inline-block;">
+            <div class="dropdown" id="history-download-dropdown" style="align-self:flex-end; margin-left:auto; position:relative; display: inline-block;">
               <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-history-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download stock history">
                 📥 Download ▾
               </button>
               <div class="dropdown-menu" id="history-download-menu" style="display:none;">
-                <button type="button" class="dropdown-item" id="btn-export-history-csv">
+                <button type="button" class="dropdown-item" data-format="csv">
                   <span class="dropdown-item-icon">📄</span>
                   <span class="dropdown-item-text">
                     <strong>CSV (.csv)</strong>
                     <small>History log data</small>
                   </span>
                 </button>
-                <button type="button" class="dropdown-item" id="btn-export-history-xlsx">
+                <button type="button" class="dropdown-item" data-format="xlsx">
                   <span class="dropdown-item-icon">📊</span>
                   <span class="dropdown-item-text">
                     <strong>Excel (.xlsx)</strong>
                     <small>Formatted workbook</small>
                   </span>
                 </button>
-                <button type="button" class="dropdown-item" id="btn-export-history-svg">
+                <button type="button" class="dropdown-item" data-format="svg">
                   <span class="dropdown-item-icon">📈</span>
                   <span class="dropdown-item-text">
                     <strong>SVG Chart (.svg)</strong>
                     <small>Vector chart & stats</small>
                   </span>
                 </button>
-                <button type="button" class="dropdown-item" id="btn-export-history-pdf">
+                <button type="button" class="dropdown-item" data-format="pdf">
                   <span class="dropdown-item-icon">📑</span>
                   <span class="dropdown-item-text">
                     <strong>PDF Report (.pdf)</strong>

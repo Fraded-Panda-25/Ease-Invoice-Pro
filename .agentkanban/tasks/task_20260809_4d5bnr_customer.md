@@ -98,7 +98,54 @@ Add this same thing or fix these in the dashboard all download dropdowns. There 
 - **Dashboard (Recent Invoices)**: Added **📥 Download ▾** with CSV, Excel (.xlsx), SVG Card, and printable PDF report.
 - **Inventory Database**: Added **📥 Download ▾** with CSV, Excel (.xlsx), SVG Card, and printable PDF sheet.
 - **Stock History Modal**: Fixed duplicate ID collisions and upgraded to the modern dropdown with CSV, Excel (.xlsx), SVG Chart, and PDF Report.
-- **Customers Directory**: Fixed and isolated IDs to prevent conflicts across views.
-- **Unified Aesthetics**: All dropdowns feature sleek glassmorphic menus, responsive click-outside/escape-to-close behavior, and live filter/search query awareness.
+- **Customers Directory**: Fixed and isolated IDs to prevent conflicts across views.- **Unified Aesthetics**: All dropdowns feature sleek glassmorphic menus, responsive click-outside/escape-to-close behavior, and live filter/search query awareness.
+
+### user
+
+Add this same thing or fix these in the dashboard all download dropdowns in the Invoice Builder's Stock History — All Products, Stock History — All Products. Make it same like Customers Directory and Inventory Database, download dropdown.
+
+### agent
+
+**Follow-up: Stock History — All Products download dropdown aligned with Customers/Inventory** ✅
+
+Fixed the Stock History modal (both "Stock History — All Products" from the dashboard cards / 📋 Full History and per-product history) so its **📥 Download ▾** dropdown behaves exactly like the Customers Directory and Inventory Database ones:
+- **Same binding pattern**: menu items now use `data-format="csv|xlsx|svg|pdf"` and are wired through a single generic `.dropdown-item` handler → new `InventoryManager.handleHistoryDownload(format)` dispatcher (mirrors `handleDownload` / `handleProductsDownload`). Removed the old fragile per-ID bindings (`btn-export-history-*`) from `index.html` and `js/inventory.js`.
+- **Real bug fixed**: `showAllHistory()` now also resets the **Type** filter when opening fresh. Previously, after opening "Sold This Month" (type = Sales) or any type filter, the "Stock History — All Products" view kept the stale filter — so it displayed *and exported* only a subset while the title said "All Products". Now it truly shows/exports everything.
+- Verified: all `js/*.js` pass `node --check`.
+
+Changes: `index.html` (dropdown items → data-format), `js/inventory.js` (generic binding + `handleHistoryDownload`, type-filter reset in `showAllHistory()`).
+
+### user
+
+Verify the download dropdowns in a live browser and fix anything that breaks
+
+### agent
+
+**Live browser verification — ALL CHECKS PASSED** ✅
+
+Ran the app in **headless Microsoft Edge (151)** via CDP (static server + seeded IndexedDB) and exercised every download dropdown end-to-end:
+- **Stock History — All Products** (opened from Invoice Builder dashboard card): title correct, Type filter resets to All Types on fresh open, menu opens with 4 items, **CSV** downloads `stock-history-all.csv` with correct header/rows/summary, **SVG Chart** downloads valid `stock-history-chart.svg`, **XLSX** downloads `stock-history-all.xlsx` (real workbook), **PDF** runs without throwing.
+- **Per-product Stock History**: title shows product name, menu opens, CSV downloads `stock-history.csv`.
+- **Customers Directory** and **Inventory Database**: menus open and CSV downloads `customers_2026-08-17.csv` / `inventory_2026-08-17.csv`.
+- **Zero console errors** across the whole session.
+
+No app bugs found — the dropdowns all work in a real browser. (Two earlier harness failures were test artifacts: a stale browser profile and an unseeded customer list, both fixed in the harness.)
+
+### user
+
+Fix these in the dashboard all download dropdowns in the Invoice Builder's Stock History — All Products, Stock History — All Products. Make it same like Customers Directory and Inventory Database, download dropdown. Goal: When the user tap on the downloads button, It opens a drop down but not like the customer options and inventory database. It looks like old like I haven't upgraded it. Middle all the download buttons and given the style like the customer option and inventory database.
+
+### agent
+
+**Visual bug found & fixed — Stock History dropdown now renders exactly like Customers/Inventory** ✅
+
+Root cause (verified with pixel analysis of headless-browser screenshots): the Stock History modal's `.modal-body` is a scroll container (`overflow-x: auto`). The download menu is `position: absolute; right: 0` — with the toggle button sitting at the **left** of the wrapped filter bar, the 220px menu opened **leftward, 72px outside the modal card** (menu x=267 vs modal-body x=339). The clipped strip showed the dark modal overlay through it, so the menu rendered darker/flatter — the "looks old" appearance.
+
+Fix: added `margin-left: auto` to `#history-download-dropdown` (`index.html`), pushing the 📥 Download button to the **right end** of the filter bar — same position as the Customers/Inventory toolbars — so the right-aligned menu now opens leftward **fully inside** the modal (menu x=778–998 within modal-body 339–1037).
+
+Verified live: menu avg color rgb(44,55,73) / corner rgb(31,43,61) now **matches** the Customers menu (44,55,72 / 31,43,61) and Inventory menu (44,55,72 / 30,41,59); before the fix it was rgb(31,40,54) with a near-black clipped corner. All functional checks (toggle opens, 4 formats, CSV/SVG/XLSX downloads, PDF, per-product view, zero console errors) still pass.
+
+
+
 
 

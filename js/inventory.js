@@ -227,7 +227,7 @@ const InventoryManager = {
             this._applyHistoryFilter();
         });
 
-        // Stock History Download dropdown toggle
+        // Stock History Download dropdown toggle and items (same pattern as Customers/Inventory)
         const histToggle = document.getElementById('btn-history-download-toggle');
         const histMenu = document.getElementById('history-download-menu');
         if (histToggle && histMenu) {
@@ -238,37 +238,42 @@ const InventoryManager = {
                 histToggle.setAttribute('aria-expanded', !isOpen);
             });
 
+            histMenu.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const format = item.getAttribute('data-format');
+                    histMenu.style.display = 'none';
+                    histToggle.setAttribute('aria-expanded', 'false');
+                    this.handleHistoryDownload(format);
+                });
+            });
+
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('#history-download-dropdown')) {
                     histMenu.style.display = 'none';
                     histToggle.setAttribute('aria-expanded', 'false');
                 }
             });
+        }
+    },
 
-            document.getElementById('btn-export-history-csv').addEventListener('click', (e) => {
-                e.stopPropagation();
-                histMenu.style.display = 'none';
-                histToggle.setAttribute('aria-expanded', 'false');
+    handleHistoryDownload(format) {
+        switch (format) {
+            case 'csv':
                 this._exportHistoryCSV();
-            });
-            document.getElementById('btn-export-history-xlsx').addEventListener('click', (e) => {
-                e.stopPropagation();
-                histMenu.style.display = 'none';
-                histToggle.setAttribute('aria-expanded', 'false');
+                break;
+            case 'xlsx':
                 this._exportHistoryXLSX();
-            });
-            document.getElementById('btn-export-history-pdf').addEventListener('click', (e) => {
-                e.stopPropagation();
-                histMenu.style.display = 'none';
-                histToggle.setAttribute('aria-expanded', 'false');
-                this._exportHistoryPDF();
-            });
-            document.getElementById('btn-export-history-svg').addEventListener('click', (e) => {
-                e.stopPropagation();
-                histMenu.style.display = 'none';
-                histToggle.setAttribute('aria-expanded', 'false');
+                break;
+            case 'svg':
                 this._exportHistorySVG();
-            });
+                break;
+            case 'pdf':
+                this._exportHistoryPDF();
+                break;
+            default:
+                this._exportHistoryCSV();
+                break;
         }
     },
 
@@ -1019,6 +1024,7 @@ const InventoryManager = {
             if (modal.style.display === 'none' || !modal.style.display) {
                 document.getElementById('filter-history-from').value = '';
                 document.getElementById('filter-history-to').value = '';
+                document.getElementById('filter-history-type').value = '';
             }
 
             // Apply the current filter (or show all if filters are empty)
