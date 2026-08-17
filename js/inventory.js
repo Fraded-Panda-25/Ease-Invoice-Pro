@@ -13,6 +13,11 @@ const InventoryManager = {
                 e.currentTarget.style.display = 'none';
                 const hm = document.getElementById('history-download-menu');
                 if (hm) hm.style.display = 'none';
+                const tooltipEl = document.getElementById('chart-instant-tooltip');
+                if (tooltipEl) {
+                    tooltipEl.classList.remove('visible');
+                    tooltipEl.style.display = 'none';
+                }
             }
         });
         // Close low stock modal when clicking outside the card
@@ -40,6 +45,11 @@ const InventoryManager = {
                 if (hm) hm.style.display = 'none';
                 const im = document.getElementById('inventory-download-menu');
                 if (im) im.style.display = 'none';
+                const tooltipEl = document.getElementById('chart-instant-tooltip');
+                if (tooltipEl) {
+                    tooltipEl.classList.remove('visible');
+                    tooltipEl.style.display = 'none';
+                }
                 // Clean up restock state
                 document.getElementById('inline-restock-panel').style.display = 'none';
                 document.getElementById('inventory-restock-panel').style.display = 'none';
@@ -1127,6 +1137,64 @@ const InventoryManager = {
         }
 
         container.innerHTML = html;
+
+        // Bind instant custom tooltip on candles
+        const candles = container.querySelectorAll('.chart-candle-group');
+        let tooltipEl = document.getElementById('chart-instant-tooltip');
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.id = 'chart-instant-tooltip';
+            tooltipEl.className = 'chart-custom-tooltip';
+            document.body.appendChild(tooltipEl);
+        }
+
+        candles.forEach(candle => {
+            // Find the <title> child and extract its text to use for custom rendering
+            const titleEl = candle.querySelector('title');
+            let tooltipContent = '';
+            if (titleEl) {
+                tooltipContent = titleEl.textContent;
+                titleEl.remove(); // Prevent standard browser tooltips from appearing
+            }
+
+            candle.addEventListener('mouseenter', (e) => {
+                tooltipEl.innerHTML = tooltipContent.replace(/\n/g, '<br>');
+                tooltipEl.style.display = 'flex';
+                // Trigger layout reflow for animation transition
+                tooltipEl.offsetHeight;
+                tooltipEl.classList.add('visible');
+            });
+
+            candle.addEventListener('mousemove', (e) => {
+                const xOffset = 15;
+                const yOffset = 15;
+                let x = e.clientX + xOffset;
+                let y = e.clientY + yOffset;
+
+                // Keep tooltip inside screen boundary
+                const tooltipWidth = tooltipEl.offsetWidth;
+                const tooltipHeight = tooltipEl.offsetHeight;
+                if (x + tooltipWidth > window.innerWidth) {
+                    x = e.clientX - tooltipWidth - xOffset;
+                }
+                if (y + tooltipHeight > window.innerHeight) {
+                    y = e.clientY - tooltipHeight - yOffset;
+                }
+
+                tooltipEl.style.left = `${x}px`;
+                tooltipEl.style.top = `${y}px`;
+            });
+
+            candle.addEventListener('mouseleave', () => {
+                tooltipEl.classList.remove('visible');
+                // Hide after transition
+                setTimeout(() => {
+                    if (!tooltipEl.classList.contains('visible')) {
+                        tooltipEl.style.display = 'none';
+                    }
+                }, 80);
+            });
+        });
     },
 
     _renderStockChart(entries, showProduct) {
@@ -1247,10 +1315,28 @@ const InventoryManager = {
                 prodName = prodName.slice(0, 14) + '…';
             }
 
-            const tooltipText = `${this.escapeHTML(e.productName || 'Product')}\nType: ${isSold ? 'Sold' : 'Restocked'} (${e.change > 0 ? '+' : ''}${e.change})\nDate: ${Utils.formatDate(e.date)}${e.invoiceNumber ? '\nInvoice: ' + this.escapeHTML(e.invoiceNumber) : ''}`;
+            // Look up extra product info (company, variant/size) from the products list
+            const prodRecord = (this.products || []).find(p => p.id === e.productId);
+            const company   = prodRecord && prodRecord.company  ? prodRecord.company  : null;
+            const sizeUnit  = prodRecord && prodRecord.sizeUnit ? prodRecord.sizeUnit : null;
+
+            const tooltipLines = [
+                `📦 ${e.productName || 'Product'}`,
+                company  ? `🏭 Company: ${company}`  : null,
+                sizeUnit ? `📐 Size / Variant: ${sizeUnit}` : null,
+                `─────────────────`,
+                `${isSold ? '🔻 Sold' : '🔺 Restocked'}: ${e.change > 0 ? '+' : ''}${e.change} units`,
+                `📅 Date: ${Utils.formatDate(e.date)}`,
+                e.invoiceNumber ? `🧾 Invoice: ${e.invoiceNumber}` : null
+            ].filter(Boolean);
+
+            const tooltipText = tooltipLines
+                .map(l => this.escapeHTML ? this.escapeHTML(l) : l)
+                .join('\n');
 
             const valueSign = e.change > 0 ? '+' : '';
             const valueFill = isSold ? 'var(--danger, #f87171)' : 'var(--secondary, #34d399)';
+
 
             barsHtml += `
                 <g class="chart-candle-group" style="cursor:pointer;">
