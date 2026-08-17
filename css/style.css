@@ -2388,11 +2388,12 @@ body.theme-dark .stock-chart-container {
 }
 
 .chart-val-label {
-    fill: var(--text-main);
-    font-size: 9px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
     font-family: inherit;
+    /* fill is set inline per-bar (red = sold, green = restocked) */
 }
+
 
 /* Stock history summary row */
 .history-summary tr {

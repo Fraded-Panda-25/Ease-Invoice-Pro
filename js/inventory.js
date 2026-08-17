@@ -1205,8 +1205,9 @@ const InventoryManager = {
         const count = chartEntries.length;
         if (count === 0) return '';
 
-        const W = 620, H = 190;
-        const PAD = { top: 24, right: 15, bottom: 32, left: 40 };
+        const W = 620, H = 210;
+        // Extra bottom padding to hold: date label + separator + value number
+        const PAD = { top: 24, right: 15, bottom: 56, left: 40 };
         const cw = W - PAD.left - PAD.right;
         const ch = H - PAD.top - PAD.bottom;
 
@@ -1217,6 +1218,16 @@ const InventoryManager = {
 
         const groupWidth = cw / count;
         const barWidth = Math.min(32, Math.max(18, groupWidth * 0.75));
+
+        // Vertical zones below the chart area:
+        //   barBottom = PAD.top + ch  (base line of bars)
+        //   sepY      = barBottom + 6  (thin separator line)
+        //   valY      = sepY + 14      (value label, e.g. "+3")
+        //   dateY     = H - 6          (date label at very bottom)
+        const barBottom = PAD.top + ch;
+        const sepY   = barBottom + 8;
+        const valY   = sepY + 14;
+        const dateY  = H - 6;
 
         let barsHtml = '';
         chartEntries.forEach((e, i) => {
@@ -1238,21 +1249,31 @@ const InventoryManager = {
 
             const tooltipText = `${this.escapeHTML(e.productName || 'Product')}\nType: ${isSold ? 'Sold' : 'Restocked'} (${e.change > 0 ? '+' : ''}${e.change})\nDate: ${Utils.formatDate(e.date)}${e.invoiceNumber ? '\nInvoice: ' + this.escapeHTML(e.invoiceNumber) : ''}`;
 
+            const valueSign = e.change > 0 ? '+' : '';
+            const valueFill = isSold ? 'var(--danger, #f87171)' : 'var(--secondary, #34d399)';
+
             barsHtml += `
                 <g class="chart-candle-group" style="cursor:pointer;">
                     <title>${tooltipText}</title>
+                    <!-- Candle bar -->
                     <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="3" class="${barClass}"/>
-                    <text x="${centerX}" y="${centerY}" 
-                          text-anchor="middle" 
-                          dominant-baseline="central" 
-                          transform="rotate(-90, ${centerX}, ${centerY})" 
+                    <!-- Product name rotated inside bar, starting from bar bottom -->
+                    <text x="${centerX}" y="${y + barH - 5}" 
+                          text-anchor="start" 
+                          dominant-baseline="middle" 
+                          transform="rotate(-90, ${centerX}, ${y + barH - 5})" 
                           class="chart-candle-label">
                         ${this.escapeHTML(prodName)}
                     </text>
-                    <text x="${centerX}" y="${Math.max(12, y - 4)}" text-anchor="middle" class="chart-val-label">
-                        ${e.change > 0 ? '+' : ''}${e.change}
+                    <!-- Separator line between bar base and value -->
+                    <line x1="${centerX - barWidth * 0.45}" y1="${sepY}" x2="${centerX + barWidth * 0.45}" y2="${sepY}"
+                          stroke="${valueFill}" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    <!-- Value number below separator -->
+                    <text x="${centerX}" y="${valY}" text-anchor="middle" class="chart-val-label" fill="${valueFill}">
+                        ${valueSign}${e.change}
                     </text>
-                    <text x="${centerX}" y="${H - 6}" text-anchor="middle" class="chart-x-label">
+                    <!-- Date label at very bottom -->
+                    <text x="${centerX}" y="${dateY}" text-anchor="middle" class="chart-x-label">
                         ${Utils.formatDate(e.date).slice(0, 6)}
                     </text>
                 </g>
@@ -1276,6 +1297,7 @@ const InventoryManager = {
             </svg>
         </div>`;
     },
+
 
     _goToPage(page) {
         if (page < 1) return;
