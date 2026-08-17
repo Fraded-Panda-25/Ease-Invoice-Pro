@@ -1,8 +1,8 @@
 ---
 title: Customer
-lane: todo
+lane: done
 created: 2026-08-09T13:18:23.587Z
-updated: 2026-08-09T15:30:00.000Z
+updated: 2026-08-17T14:46:00.000Z
 description: Add a option called "Customers" in the middle of the dashboard and inventory database. I want the new button to go to a new page of my every customer name, email address, phone number, address, and there should be a filters, and bulk select email, phone number or address options. Also there should be a option called "Part time customer". By clicking it, the user can get the buyers, who buy products from the user the most.
 priority: medium
 assignee: Pritam Paul
@@ -69,4 +69,36 @@ Implementation notes:
 All `js/*.js` pass `node --check`.
 
 ### user
+
+apply all.
+
+### agent
+
+All changes are fully applied and saved. The **Customers** directory and **Part time customer** feature are completely ready and active across all modules. All `js/*.js` pass `node --check`.
+
+### user
+
+Add another options with csv, like xlsx, svg, pdf in a download dropdown.
+
+### agent
+
+**Follow-up: Multi-format download dropdown (CSV, XLSX, SVG, PDF)** ✅ — upgraded the single CSV export button to a sleek **📥 Download ▾** dropdown menu offering 4 formats:
+- **CSV (.csv)**: UTF-8 BOM comma-separated spreadsheet data.
+- **Excel (.xlsx)**: Formatted XML spreadsheet workbook with bold headers, styled grid, number formatting, and totals.
+- **SVG (.svg)**: Vector graphic summary card with dark gradient header, stats summary, and styled customer rows.
+- **PDF (.pdf)**: Clean printable customer report with summary cards, table, and print/PDF save dialog.
+
+### user
+
+Add this same thing or fix these in the dashboard all download dropdowns. There are already many drop downs, but many of them is not working.
+
+### agent
+
+**Follow-up: Unified multi-format download dropdowns across Dashboard, Inventory, Customers & Modals** ✅:
+- **Dashboard (Recent Invoices)**: Added **📥 Download ▾** with CSV, Excel (.xlsx), SVG Card, and printable PDF report.
+- **Inventory Database**: Added **📥 Download ▾** with CSV, Excel (.xlsx), SVG Card, and printable PDF sheet.
+- **Stock History Modal**: Fixed duplicate ID collisions and upgraded to the modern dropdown with CSV, Excel (.xlsx), SVG Chart, and PDF Report.
+- **Customers Directory**: Fixed and isolated IDs to prevent conflicts across views.
+- **Unified Aesthetics**: All dropdowns feature sleek glassmorphic menus, responsive click-outside/escape-to-close behavior, and live filter/search query awareness.
+
 

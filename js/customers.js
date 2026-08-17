@@ -438,10 +438,40 @@ const CustomersManager = {
             btnBulkDelete.addEventListener('click', () => this.handleBulkDelete());
         }
 
-        // Export CSV Button
-        const btnExportCsv = document.getElementById('btn-export-customers-csv');
-        if (btnExportCsv) {
-            btnExportCsv.addEventListener('click', () => this.exportCSV());
+        // Download Dropdown Toggle and Items
+        const downloadToggle = document.getElementById('btn-customer-download-toggle');
+        const downloadMenu = document.getElementById('customer-download-menu');
+        if (downloadToggle && downloadMenu) {
+            downloadToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = downloadMenu.style.display === 'flex';
+                downloadMenu.style.display = isOpen ? 'none' : 'flex';
+                downloadToggle.setAttribute('aria-expanded', !isOpen);
+            });
+
+            downloadMenu.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const format = item.getAttribute('data-format');
+                    downloadMenu.style.display = 'none';
+                    downloadToggle.setAttribute('aria-expanded', 'false');
+                    this.handleDownload(format);
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#customer-download-dropdown')) {
+                    downloadMenu.style.display = 'none';
+                    downloadToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && downloadMenu.style.display === 'flex') {
+                    downloadMenu.style.display = 'none';
+                    downloadToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
         }
 
         // Add Customer Modal open button
@@ -555,6 +585,26 @@ const CustomersManager = {
         }
     },
 
+    handleDownload(format) {
+        switch (format) {
+            case 'csv':
+                this.exportCSV();
+                break;
+            case 'xlsx':
+                this.exportXLSX();
+                break;
+            case 'svg':
+                this.exportSVG();
+                break;
+            case 'pdf':
+                this.exportPDF();
+                break;
+            default:
+                this.exportCSV();
+                break;
+        }
+    },
+
     exportCSV() {
         // Export the currently visible list (respects active filter + search query)
         const list = this.getFilteredCustomers();
@@ -593,6 +643,304 @@ const CustomersManager = {
         URL.revokeObjectURL(url);
 
         Utils.showToast(`Exported ${list.length} customer(s) to CSV.`, 'success');
+    },
+
+    exportXLSX() {
+        // Export currently visible list as Excel-compatible Workbook XML (.xlsx)
+        const list = this.getFilteredCustomers();
+        if (list.length === 0) {
+            Utils.showToast('No customers to export with the current filter.', 'warning');
+            return;
+        }
+
+        const escapeXml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
+        let xmlRows = '';
+        list.forEach(c => {
+            xmlRows += `
+    <Row ss:Height="20">
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(c.name || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(c.phone || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(c.email || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(c.address || '')}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${c.totalInvoices || 0}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${(c.totalSpent || 0).toFixed(2)}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(c.lastOrderDate ? Utils.formatDate(c.lastOrderDate) : '')}</Data></Cell>
+    </Row>`;
+        });
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>Customers Directory</Title>
+  <Created>${new Date().toISOString()}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Segoe UI" ss:Size="11"/>
+   <Interior ss:Color="#0EA5E9" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#0284C7"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="Data">
+   <Font ss:Color="#1E293B" ss:FontName="Segoe UI" ss:Size="10"/>
+   <Alignment ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="DataNumber">
+   <Font ss:Color="#1E293B" ss:FontName="Segoe UI" ss:Size="10"/>
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Customers">
+  <Table>
+   <Column ss:Width="160"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="240"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="120"/>
+   <Row ss:StyleID="Header" ss:Height="24">
+    <Cell><Data ss:Type="String">Customer Name</Data></Cell>
+    <Cell><Data ss:Type="String">Phone Number</Data></Cell>
+    <Cell><Data ss:Type="String">Email Address</Data></Cell>
+    <Cell><Data ss:Type="String">Address</Data></Cell>
+    <Cell><Data ss:Type="String">Total Invoices</Data></Cell>
+    <Cell><Data ss:Type="String">Total Spent (INR)</Data></Cell>
+    <Cell><Data ss:Type="String">Last Order Date</Data></Cell>
+   </Row>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `customers_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} customer(s) to Excel (.xlsx).`, 'success');
+    },
+
+    exportSVG() {
+        // Export currently visible list as a vector graphic card (.svg)
+        const list = this.getFilteredCustomers();
+        if (list.length === 0) {
+            Utils.showToast('No customers to export with the current filter.', 'warning');
+            return;
+        }
+
+        const escapeXml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
+        const rowHeight = 44;
+        const headerHeight = 140;
+        const tableHeaderHeight = 40;
+        const footerHeight = 40;
+        const totalHeight = headerHeight + tableHeaderHeight + (list.length * rowHeight) + footerHeight;
+        const width = 1100;
+
+        let rowsSvg = '';
+        list.forEach((c, idx) => {
+            const y = headerHeight + tableHeaderHeight + (idx * rowHeight);
+            const bg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
+            const isTop = idx === 0 && (c.totalInvoices || 0) > 0;
+            
+            rowsSvg += `
+        <rect x="20" y="${y}" width="${width - 40}" height="${rowHeight}" fill="${bg}" rx="4"/>
+        <text x="40" y="${y + 26}" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="${isTop ? '700' : '600'}" fill="${isTop ? '#38bdf8' : '#f8fafc'}">${escapeXml(c.name || '—')}${isTop ? ' ⭐' : ''}</text>
+        <text x="260" y="${y + 26}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8">${escapeXml(c.phone || '—')}</text>
+        <text x="420" y="${y + 26}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#38bdf8">${escapeXml(c.email || '—')}</text>
+        <text x="640" y="${y + 26}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8">${escapeXml((c.address || '—').substring(0, 32) + ((c.address && c.address.length > 32) ? '...' : ''))}</text>
+        <text x="880" y="${y + 26}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#f8fafc" text-anchor="middle">${c.totalInvoices || 0}</text>
+        <text x="1040" y="${y + 26}" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#34d399" text-anchor="end">${escapeXml(Utils.formatCurrency(c.totalSpent || 0))}</text>`;
+        });
+
+        const totalRevenue = list.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+        const activeBuyers = list.filter(c => (c.totalInvoices || 0) > 0).length;
+
+        const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${totalHeight}" width="${width}" height="${totalHeight}">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="${width}" height="${totalHeight}" fill="#0b1120"/>
+
+  <!-- Header Banner -->
+  <rect x="20" y="20" width="${width - 40}" height="100" rx="12" fill="url(#headerGrad)"/>
+  <text x="50" y="60" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#ffffff">👥 Ease Invoice — Customer Directory</text>
+  <text x="50" y="90" font-family="Inter, -apple-system, sans-serif" font-size="13" fill="#cbd5e1">Generated on ${Utils.formatDate(new Date().toISOString())} • ${list.length} Customers • ${activeBuyers} Active Buyers • Total Volume: ${escapeXml(Utils.formatCurrency(totalRevenue))}</text>
+
+  <!-- Table Header -->
+  <rect x="20" y="${headerHeight}" width="${width - 40}" height="${tableHeaderHeight}" fill="#1e293b" rx="6"/>
+  <text x="40" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">CUSTOMER NAME</text>
+  <text x="260" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">PHONE</text>
+  <text x="420" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">EMAIL</text>
+  <text x="640" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">ADDRESS</text>
+  <text x="880" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="middle">ORDERS</text>
+  <text x="1040" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="end">TOTAL SPENT</text>
+
+  <!-- Data Rows -->
+  ${rowsSvg}
+
+  <!-- Footer -->
+  <text x="${width / 2}" y="${totalHeight - 15}" font-family="Inter, -apple-system, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Ease Invoice Pro • Vector Graphic Report</text>
+</svg>`;
+
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `customers_${new Date().toISOString().split('T')[0]}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} customer(s) to SVG.`, 'success');
+    },
+
+    exportPDF() {
+        // Export currently visible list as a printable PDF report
+        const list = this.getFilteredCustomers();
+        if (list.length === 0) {
+            Utils.showToast('No customers to export with the current filter.', 'warning');
+            return;
+        }
+
+        const printWin = window.open('', '_blank', 'width=900,height=700');
+        if (!printWin) {
+            Utils.showToast('Popup blocked. Please allow popups to download PDF.', 'warning');
+            return;
+        }
+
+        const totalRevenue = list.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+        const activeBuyers = list.filter(c => (c.totalInvoices || 0) > 0).length;
+
+        let rowsHtml = '';
+        list.forEach((c, idx) => {
+            const isTop = idx === 0 && (c.totalInvoices || 0) > 0;
+            rowsHtml += `
+        <tr>
+            <td><strong>${Utils.escapeHTML(c.name || '—')}</strong>${isTop ? ' <span class="badge">⭐ Top Buyer</span>' : ''}</td>
+            <td>${Utils.escapeHTML(c.phone || '—')}</td>
+            <td>${Utils.escapeHTML(c.email || '—')}</td>
+            <td>${Utils.escapeHTML(c.address || '—')}</td>
+            <td style="text-align:center;">${c.totalInvoices || 0}</td>
+            <td style="text-align:right;"><strong>${Utils.formatCurrency(c.totalSpent || 0)}</strong></td>
+            <td>${c.lastOrderDate ? Utils.formatDate(c.lastOrderDate) : '—'}</td>
+        </tr>`;
+        });
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Customer Directory - Ease Invoice</title>
+    <style>
+        @page { size: A4 portrait; margin: 1.2cm; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; margin: 0; padding: 20px; font-size: 12px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0ea5e9; padding-bottom: 12px; margin-bottom: 16px; }
+        .title { font-size: 20px; font-weight: bold; color: #0f172a; margin: 0 0 4px 0; }
+        .subtitle { font-size: 11px; color: #64748b; margin: 0; }
+        .stats { display: flex; gap: 20px; margin-bottom: 16px; background: #f8fafc; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+        .stat-val { font-size: 13px; font-weight: bold; color: #0ea5e9; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+        th { background: #0ea5e9; color: white; text-align: left; padding: 8px; font-size: 10px; text-transform: uppercase; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .badge { background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; }
+        .footer { margin-top: 24px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+        @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1 class="title">Ease Invoice — Customer Directory</h1>
+            <p class="subtitle">Exported on ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+    </div>
+    <div class="stats">
+        <div class="stat-item"><span class="stat-label">Total Customers</span><span class="stat-val">${list.length}</span></div>
+        <div class="stat-item"><span class="stat-label">Active Buyers</span><span class="stat-val">${activeBuyers}</span></div>
+        <div class="stat-item"><span class="stat-label">Total Volume</span><span class="stat-val">${Utils.formatCurrency(totalRevenue)}</span></div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 20%;">Customer Name</th>
+                <th style="width: 14%;">Phone</th>
+                <th style="width: 18%;">Email</th>
+                <th style="width: 22%;">Address</th>
+                <th style="width: 8%; text-align:center;">Orders</th>
+                <th style="width: 10%; text-align:right;">Total Spent</th>
+                <th style="width: 8%;">Last Order</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rowsHtml}
+        </tbody>
+    </table>
+    <div class="footer">
+        Generated by Ease Invoice Pro • Free &amp; Client-side Invoicing
+    </div>
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+</body>
+</html>`;
+
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+
+        Utils.showToast(`Prepared PDF document with ${list.length} customer(s).`, 'success');
     },
 
     openAddModal() {

@@ -2679,4 +2679,97 @@ body.theme-dark .customer-history-summary {
     cursor: pointer;
 }
 
+/* ==========================================================================
+   Dropdown Component (e.g., Export/Download Menu)
+   ========================================================================== */
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 220px;
+    background-color: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    padding: 0.4rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    animation: dropdownFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(8px);
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(56, 189, 248, 0.12);
+    color: var(--primary);
+}
+
+body.theme-dark .dropdown-item:hover {
+    background-color: rgba(56, 189, 248, 0.16);
+}
+
+.dropdown-item:active {
+    transform: scale(0.98);
+}
+
+.dropdown-item-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.dropdown-item-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.dropdown-item-text strong {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.dropdown-item-text small {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.1;
+}
+
+
 

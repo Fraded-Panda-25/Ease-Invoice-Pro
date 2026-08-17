@@ -287,15 +287,58 @@
 
             <!-- Invoice History List -->
             <div id="invoice-history" class="no-print">
-              <h3 class="section-title">Recent Invoices</h3>
-              <div class="search-bar" style="margin-bottom: 1rem">
-                <input
-                  type="text"
-                  id="search-history"
-                  placeholder="Search by customer name or invoice number..."
-                  class="form-control"
-                />
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+                <h3 class="section-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Recent Invoices</h3>
+                
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; max-width: 500px; justify-content: flex-end;">
+                  <div class="search-bar" style="margin-bottom: 0; flex: 1;">
+                    <input
+                      type="text"
+                      id="search-history"
+                      placeholder="Search by customer name or invoice #..."
+                      class="form-control"
+                    />
+                  </div>
+
+                  <!-- Invoices Download Dropdown -->
+                  <div class="dropdown" id="invoices-download-dropdown" style="position: relative; display: inline-block;">
+                    <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-invoices-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download recent invoices">
+                      📥 Download ▾
+                    </button>
+                    <div class="dropdown-menu" id="invoices-download-menu" style="display: none;">
+                      <button type="button" class="dropdown-item" data-format="csv">
+                        <span class="dropdown-item-icon">📄</span>
+                        <span class="dropdown-item-text">
+                          <strong>CSV (.csv)</strong>
+                          <small>Invoice records</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="xlsx">
+                        <span class="dropdown-item-icon">📊</span>
+                        <span class="dropdown-item-text">
+                          <strong>Excel (.xlsx)</strong>
+                          <small>Formatted workbook</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="svg">
+                        <span class="dropdown-item-icon">🖼️</span>
+                        <span class="dropdown-item-text">
+                          <strong>SVG Card (.svg)</strong>
+                          <small>Vector graphic summary</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="pdf">
+                        <span class="dropdown-item-icon">📑</span>
+                        <span class="dropdown-item-text">
+                          <strong>PDF Document (.pdf)</strong>
+                          <small>Printable report</small>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
+
               <div class="table-responsive">
                 <table class="data-table" id="history-table">
                   <thead>
@@ -419,15 +462,52 @@
               </form>
             </div>
 
-            <div class="search-bar" style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <div class="search-bar" style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
               <input
                 type="text"
                 id="search-inventory"
                 placeholder="Search by name, company, variant..."
                 class="form-control"
-                style="flex: 1;"
+                style="flex: 1; min-width: 240px;"
               />
               <button class="btn btn-outline btn-sm" onclick="InventoryManager.showAllHistory()">📋 Full History</button>
+              
+              <!-- Inventory Download Dropdown -->
+              <div class="dropdown" id="inventory-download-dropdown" style="position: relative; display: inline-block;">
+                <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-inventory-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download inventory list">
+                  📥 Download ▾
+                </button>
+                <div class="dropdown-menu" id="inventory-download-menu" style="display: none;">
+                  <button type="button" class="dropdown-item" data-format="csv">
+                    <span class="dropdown-item-icon">📄</span>
+                    <span class="dropdown-item-text">
+                      <strong>CSV (.csv)</strong>
+                      <small>Product inventory data</small>
+                    </span>
+                  </button>
+                  <button type="button" class="dropdown-item" data-format="xlsx">
+                    <span class="dropdown-item-icon">📊</span>
+                    <span class="dropdown-item-text">
+                      <strong>Excel (.xlsx)</strong>
+                      <small>Formatted workbook</small>
+                    </span>
+                  </button>
+                  <button type="button" class="dropdown-item" data-format="svg">
+                    <span class="dropdown-item-icon">🖼️</span>
+                    <span class="dropdown-item-text">
+                      <strong>SVG Card (.svg)</strong>
+                      <small>Vector graphic inventory card</small>
+                    </span>
+                  </button>
+                  <button type="button" class="dropdown-item" data-format="pdf">
+                    <span class="dropdown-item-icon">📑</span>
+                    <span class="dropdown-item-text">
+                      <strong>PDF Document (.pdf)</strong>
+                      <small>Printable inventory sheet</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="inventory-color-legend">
@@ -506,12 +586,48 @@
                     placeholder="Search by customer name, phone, email, address..."
                   />
                 </div>
-                <div class="filter-pills" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <div class="filter-pills" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                   <button class="btn btn-outline customer-filter-btn active" data-filter="all">All Customers</button>
                   <button class="btn btn-outline customer-filter-btn part-time-highlight" data-filter="part-time" id="btn-filter-part-time" title="View buyers who purchase products the most">⭐ Part time customer</button>
                   <button class="btn btn-outline customer-filter-btn" data-filter="email">Has Email</button>
                   <button class="btn btn-outline customer-filter-btn" data-filter="phone">Has Phone</button>
-                  <button class="btn btn-outline btn-sm" id="btn-export-customers-csv" title="Export the current customer list (all or filtered) as CSV">📥 Export CSV</button>
+                  
+                  <!-- Download Dropdown -->
+                  <div class="dropdown" id="customer-download-dropdown" style="position: relative; display: inline-block;">
+                    <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-customer-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download customer directory">
+                      📥 Download ▾
+                    </button>
+                    <div class="dropdown-menu" id="customer-download-menu" style="display: none;">
+                      <button type="button" class="dropdown-item" data-format="csv">
+                        <span class="dropdown-item-icon">📄</span>
+                        <span class="dropdown-item-text">
+                          <strong>CSV (.csv)</strong>
+                          <small>Comma-separated data</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="xlsx">
+                        <span class="dropdown-item-icon">📊</span>
+                        <span class="dropdown-item-text">
+                          <strong>Excel (.xlsx)</strong>
+                          <small>Formatted workbook</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="svg">
+                        <span class="dropdown-item-icon">🖼️</span>
+                        <span class="dropdown-item-text">
+                          <strong>SVG Card (.svg)</strong>
+                          <small>Vector graphic card</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="pdf">
+                        <span class="dropdown-item-icon">📑</span>
+                        <span class="dropdown-item-text">
+                          <strong>PDF Document (.pdf)</strong>
+                          <small>Printable document report</small>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -846,13 +962,39 @@
               </select>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-clear-history-filter" style="align-self:flex-end;">Clear</button>
-            <div class="download-dropdown" id="download-dropdown" style="align-self:flex-end; position:relative;">
-              <button class="btn btn-outline btn-sm" id="btn-download-dropdown-toggle">📥 Download ▾</button>
-              <div class="download-dropdown-menu" id="btn-download-dropdown-menu" style="display:none;">
-                <button class="download-dropdown-item" id="btn-export-history-xlsx">📊 Export as XLSX</button>
-                <button class="download-dropdown-item" id="btn-export-history-pdf">📄 Export as PDF</button>
-                <button class="download-dropdown-item" id="btn-export-history-svg">📈 Export Chart as SVG</button>
-                <button class="download-dropdown-item" id="btn-export-history-csv">📋 Export as CSV</button>
+            <div class="dropdown" id="history-download-dropdown" style="align-self:flex-end; position:relative; display: inline-block;">
+              <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-history-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download stock history">
+                📥 Download ▾
+              </button>
+              <div class="dropdown-menu" id="history-download-menu" style="display:none;">
+                <button type="button" class="dropdown-item" id="btn-export-history-csv">
+                  <span class="dropdown-item-icon">📄</span>
+                  <span class="dropdown-item-text">
+                    <strong>CSV (.csv)</strong>
+                    <small>History log data</small>
+                  </span>
+                </button>
+                <button type="button" class="dropdown-item" id="btn-export-history-xlsx">
+                  <span class="dropdown-item-icon">📊</span>
+                  <span class="dropdown-item-text">
+                    <strong>Excel (.xlsx)</strong>
+                    <small>Formatted workbook</small>
+                  </span>
+                </button>
+                <button type="button" class="dropdown-item" id="btn-export-history-svg">
+                  <span class="dropdown-item-icon">📈</span>
+                  <span class="dropdown-item-text">
+                    <strong>SVG Chart (.svg)</strong>
+                    <small>Vector chart & stats</small>
+                  </span>
+                </button>
+                <button type="button" class="dropdown-item" id="btn-export-history-pdf">
+                  <span class="dropdown-item-icon">📑</span>
+                  <span class="dropdown-item-text">
+                    <strong>PDF Report (.pdf)</strong>
+                    <small>Printable history report</small>
+                  </span>
+                </button>
               </div>
             </div>
           </div>
