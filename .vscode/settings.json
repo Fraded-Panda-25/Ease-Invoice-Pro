@@ -1,6 +1,9 @@
 {
     "cSpell.words": [
-        "GSTIN"
+        "Codebuff",
+        "GSTIN",
+        "hashchange",
+        "reassignable"
     ],
     "workbench.colorCustomizations": {
         "activityBar.activeBackground": "#2b6bce",
