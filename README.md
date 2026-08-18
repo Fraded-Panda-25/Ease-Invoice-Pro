@@ -17,13 +17,13 @@ A free, client-side invoicing and inventory management single-page application. 
 
 No build step required. Open 1. `index.html` in a browser, or 2. visit our website, or 3. run a local server.
 
-### Use case-1:
+### Option-1:
 
 1. Install the repository on your device.
 2. Run the `index.html` file in a browser.
 3. You are ready to go.
 
-### Use case-2:
+### Option-2:
 
 ```bash
 # Clone the repo
@@ -46,7 +46,7 @@ python -m http.server
 
 Then open `http://localhost:3000` (or `localhost:8000` for Python).
 
-### Use case-3:
+### Option-3:
 
 Visit our website by tapping on the link: [Ease-Invoice-Pro](https://fraded-panda-25.github.io/Ease-Invoice-Pro/)
 
