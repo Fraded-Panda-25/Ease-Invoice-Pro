@@ -1,6 +1,17 @@
 {
     "cSpell.words": [
+<<<<<<< Updated upstream
         "GSTIN"
+=======
+        "adoc",
+        "Codebuff",
+        "GSTIN",
+        "hashchange",
+        "Hyperedge",
+        "hyperedges",
+        "reassignable",
+        "rels"
+>>>>>>> Stashed changes
     ],
     "workbench.colorCustomizations": {
         "activityBar.activeBackground": "#2b6bce",

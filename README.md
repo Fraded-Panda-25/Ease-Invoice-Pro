@@ -19,7 +19,7 @@ No build step required. Open `index.html` in a browser, or run a local server:
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/ease-invoice.git
+git clone https://github.com/Fraded-Panda-25/Ease-Invoice-Pro.git
 cd ease-invoice
 
 # Start a local server
