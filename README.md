@@ -20,7 +20,7 @@ No build step required. Open `index.html` in a browser, or run a local server:
 ```bash
 # Clone the repo
 git clone https://github.com/Fraded-Panda-25/Ease-Invoice-Pro.git
-cd ease-invoice
+cd Ease-Invoice-Pro
 
 # Start a local server
 npx serve .
