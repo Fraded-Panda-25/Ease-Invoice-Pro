@@ -2,144 +2,725 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>graphify - graphify-out\graph.html</title>
-<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"
-        integrity="sha384-Ux6phic9PEHJ38YtrijhkzyJ8yQlH8i/+buBR8s3mAZOJrP1gwyvAcIYl3GWtpX1"
-        crossorigin="anonymous"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code Knowledge Graph · graphify</title>
+<!--
+  ============================================================================
+  CODE KNOWLEDGE GRAPH VIEWER (graphify)
+  ============================================================================
+  DATA SOURCE
+  -----------
+  This page is a viewer for `graph.json`, which is written by Graphify
+  (`npx graphify build`) into the same folder as this HTML file. It contains
+  NO embedded graph data — everything is fetched at runtime:
+
+      fetch('graph.json')                       -> canonical nodes + links
+      fetch('.graphify_labels.json') (optional) -> community display names
+                                                  (fallback: names derived
+                                                  from the data itself)
+
+  Because the data is loaded at runtime, re-running `npx graphify build`
+  and refreshing this page is enough to stay in sync — edit nothing here.
+
+  NOTE ON OPENING FROM DISK: modern browsers block fetch() for file:// pages.
+  If `graph.json` fails to load, serve this folder over HTTP, e.g.
+      python -m http.server 8000     then open http://localhost:8000/graph.html
+      npx serve .                    (Node-based alternative)
+
+  HOW TO CUSTOMIZE
+  ----------------
+  - Node colors : TYPE_COLORS (per derived node type) and COMMUNITY_COLORS
+                  (per community cluster) below. Change hex values and reload.
+  - Edge styles : REL_STYLES below keys off the `relation` field of each link
+                  (contains / method / calls / imports / references ...).
+  - Layout     : PHYSICS_BASE + the large-graph scaling in buildOptions().
+                  Tune springLength / gravitationalConstant / solver there.
+  - Filters    : derived node types (file/class/function/method/doc), file
+                  extension, community, and "hide low-degree leaves" (LEAF_DEGREE).
+  ============================================================================
+-->
+<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0f0f1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; height: 100vh; overflow: hidden; }
-  #graph { flex: 1; }
-  #sidebar { width: 280px; background: #1a1a2e; border-left: 1px solid #2a2a4e; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ---------- graph canvas ---------- */
+  #graph { flex: 1; position: relative; min-width: 0; }
+  #fit-btn {
+    position: absolute; right: 14px; bottom: 14px; z-index: 5;
+    background: #1a1a2e; color: #ccc; border: 1px solid #3a3a5e;
+    border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  #fit-btn:hover { color: #fff; border-color: #4E79A7; }
+
+  /* ---------- sidebar ---------- */
+  #sidebar { width: 300px; background: #1a1a2e; border-left: 1px solid #2a2a4e; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+
   #search-wrap { padding: 12px; border-bottom: 1px solid #2a2a4e; }
   #search { width: 100%; background: #0f0f1a; border: 1px solid #3a3a5e; color: #e0e0e0; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
   #search:focus { border-color: #4E79A7; }
-  #search-results { max-height: 140px; overflow-y: auto; padding: 4px 12px; border-bottom: 1px solid #2a2a4e; display: none; }
+  #search-results { max-height: 150px; overflow-y: auto; padding: 4px 6px; display: none; }
   .search-item { padding: 4px 6px; cursor: pointer; border-radius: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .search-item:hover { background: #2a2a4e; }
-  #info-panel { padding: 14px; border-bottom: 1px solid #2a2a4e; min-height: 140px; }
-  #info-panel h3 { font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
-  #info-content { font-size: 13px; color: #ccc; line-height: 1.6; }
-  #info-content .field { margin-bottom: 5px; }
+  .search-item small { color: #777; }
+
+  /* ---------- filters ---------- */
+  #filters-wrap { padding: 10px 12px; border-bottom: 1px solid #2a2a4e; display: flex; flex-direction: column; gap: 8px; }
+  #filters-wrap h3 { font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+  .filter-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; }
+  .filter-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; white-space: nowrap; }
+  .filter-row label:hover { color: #e0e0e0; }
+  select {
+    background: #0f0f1a; border: 1px solid #3a3a5e; color: #e0e0e0;
+    padding: 5px 8px; border-radius: 6px; font-size: 12px; outline: none;
+    flex: 1; min-width: 0;
+  }
+  select:focus { border-color: #4E79A7; }
+  .cb {
+    appearance: none; -webkit-appearance: none; width: 14px; height: 14px;
+    border: 1.5px solid #3a3a5e; border-radius: 3px; background: #0f0f1a;
+    cursor: pointer; position: relative; flex-shrink: 0;
+  }
+  .cb:checked { background: #4E79A7; border-color: #4E79A7; }
+  .cb:checked::after { content: ''; position: absolute; left: 3.5px; top: 1px; width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .cb:indeterminate { background: #4E79A7; border-color: #4E79A7; }
+  .cb:indeterminate::after { content: ''; position: absolute; left: 2px; top: 5px; width: 8px; height: 2px; background: #fff; border: none; transform: none; }
+
+  /* ---------- info panel ---------- */
+  #info-panel { padding: 12px 14px; border-bottom: 1px solid #2a2a4e; min-height: 120px; max-height: 34vh; overflow-y: auto; }
+  #info-panel h3 { font-size: 12px; color: #aaa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #info-content { font-size: 13px; color: #ccc; line-height: 1.55; }
+  #info-content .field { margin-bottom: 4px; word-break: break-word; }
   #info-content .field b { color: #e0e0e0; }
   #info-content .empty { color: #555; font-style: italic; }
-  .neighbor-link { display: block; padding: 2px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid #333; }
+  .type-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #0f0f1a; margin-left: 6px; vertical-align: 1px; }
+  .neighbor-link { display: flex; align-items: center; gap: 6px; padding: 2px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; }
   .neighbor-link:hover { background: #2a2a4e; }
-  #neighbors-list { max-height: 160px; overflow-y: auto; margin-top: 4px; }
+  .neighbor-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .neighbor-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .neighbor-rel { color: #666; font-size: 10px; text-transform: uppercase; flex-shrink: 0; }
+  #neighbors-list { max-height: 140px; overflow-y: auto; margin-top: 4px; }
+
+  /* ---------- legend ---------- */
   #legend-wrap { flex: 1; overflow-y: auto; padding: 12px; }
-  #legend-wrap h3 { font-size: 13px; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #legend-wrap h3 { font-size: 12px; color: #aaa; margin: 10px 0 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #legend-wrap h3:first-child { margin-top: 0; }
+  #legend-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 4px 0; }
+  #legend-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #aaa; user-select: none; }
+  #legend-controls label:hover { color: #e0e0e0; }
   .legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; border-radius: 4px; font-size: 12px; }
   .legend-item:hover { background: #2a2a4e; padding-left: 4px; }
   .legend-item.dimmed { opacity: 0.35; }
   .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
   .legend-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .legend-count { color: #666; font-size: 11px; }
-  #stats { padding: 10px 14px; border-top: 1px solid #2a2a4e; font-size: 11px; color: #555; }
-  #legend-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 4px 0; }
-  #legend-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #aaa; user-select: none; }
-  #legend-controls label:hover { color: #e0e0e0; }
-  .legend-cb, #select-all-cb { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; border: 1.5px solid #3a3a5e; border-radius: 3px; background: #0f0f1a; cursor: pointer; position: relative; flex-shrink: 0; }
-  .legend-cb:checked, #select-all-cb:checked { background: #4E79A7; border-color: #4E79A7; }
-  .legend-cb:checked::after, #select-all-cb:checked::after { content: ''; position: absolute; left: 3.5px; top: 1px; width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-  #select-all-cb:indeterminate { background: #4E79A7; border-color: #4E79A7; }
-  #select-all-cb:indeterminate::after { content: ''; position: absolute; left: 2px; top: 5px; width: 8px; height: 2px; background: #fff; border: none; transform: none; }
+
+  /* ---------- stats / error ---------- */
+  #stats { padding: 8px 14px; border-top: 1px solid #2a2a4e; font-size: 11px; color: #666; display: flex; align-items: center; gap: 8px; }
+  #stats-text { flex: 1; }
+  #reload-btn { background: #1a1a2e; color: #aaa; border: 1px solid #3a3a5e; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+  #reload-btn:hover { color: #fff; border-color: #4E79A7; }
+
+  #error-banner {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 100;
+    max-width: 640px; width: 90%; background: #33151a; color: #f2b8b8;
+    border: 1px solid #e15759; border-radius: 8px; padding: 12px 16px;
+    font-size: 13px; line-height: 1.5; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    display: none;
+  }
+  #error-banner.visible { display: block; }
+  #error-banner code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; }
+  #error-banner .close { float: right; cursor: pointer; color: #f2b8b8; background: none; border: none; font-size: 15px; }
 </style>
 </head>
 <body>
-<div id="graph"></div>
-<div id="sidebar">
+
+<div id="error-banner" role="alert">
+  <button class="close" title="Dismiss" onclick="this.parentNode.classList.remove('visible')">&times;</button>
+  <div id="error-message"></div>
+</div>
+
+<div id="graph">
+  <button id="fit-btn" title="Fit graph to view">⤢ Fit</button>
+</div>
+
+<aside id="sidebar">
+  <!-- Search by label, normalized label, path or id -->
   <div id="search-wrap">
-    <input id="search" type="text" placeholder="Search nodes..." autocomplete="off">
+    <input id="search" type="text" placeholder="Search nodes by name or path…" autocomplete="off">
     <div id="search-results"></div>
   </div>
+
+  <!-- Filters: node type, file extension, community, display options -->
+  <div id="filters-wrap">
+    <h3>Filters &amp; Display</h3>
+    <div class="filter-row">
+      <label for="color-by">Color by</label>
+      <select id="color-by">
+        <option value="community">Community</option>
+        <option value="type">Node type</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <label for="ext-filter">Extension</label>
+      <select id="ext-filter"><option value="all">All files</option></select>
+    </div>
+    <div class="filter-row">
+      <label for="rel-filter">Edges</label>
+      <select id="rel-filter"><option value="all">All relations</option></select>
+    </div>
+    <div class="filter-row">
+      <label><input type="checkbox" class="cb" id="collapse-leaves"> Hide low-degree leaves</label>
+    </div>
+    <div class="filter-row">
+      <label><input type="checkbox" class="cb" id="edge-labels"> Show edge labels</label>
+    </div>
+    <div class="filter-row">
+      <label for="label-mode">Labels</label>
+      <select id="label-mode">
+        <option value="auto">Auto (hubs only)</option>
+        <option value="all">All</option>
+        <option value="none">None</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Detailed metadata for the selected node -->
   <div id="info-panel">
     <h3>Node Info</h3>
     <div id="info-content"><span class="empty">Click a node to inspect it</span></div>
   </div>
+
+  <!-- Community + node-type legends (also act as filters) -->
   <div id="legend-wrap">
     <h3>Communities</h3>
     <div id="legend-controls">
-      <label><input type="checkbox" id="select-all-cb" checked onchange="toggleAllCommunities(!this.checked)">Select All</label>
+      <label><input type="checkbox" class="cb" id="select-all-cb" checked onchange="toggleAllCommunities(!this.checked)">Select all</label>
     </div>
     <div id="legend"></div>
+    <h3>Node types</h3>
+    <div id="type-legend"></div>
   </div>
-  <div id="stats">24 nodes &middot; 21 edges &middot; 7 communities</div>
-</div>
-<script>
-const RAW_NODES = [{"id": "js_app", "label": "app.js", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 22.0, "font": {"size": 12, "color": "#ffffff"}, "title": "app.js", "community": 1, "community_name": "App Bootstrap", "source_file": "js/app.js", "file_type": "code", "degree": 4}, {"id": "js_app_setupnavigation", "label": "setupNavigation()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "setupNavigation()", "community": 1, "community_name": "App Bootstrap", "source_file": "js/app.js", "file_type": "code", "degree": 1}, {"id": "js_app_setupthemetoggle", "label": "setupThemeToggle()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "setupThemeToggle()", "community": 1, "community_name": "App Bootstrap", "source_file": "js/app.js", "file_type": "code", "degree": 1}, {"id": "js_app_setupsidebartoggle", "label": "setupSidebarToggle()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "setupSidebarToggle()", "community": 1, "community_name": "App Bootstrap", "source_file": "js/app.js", "file_type": "code", "degree": 1}, {"id": "js_app_setupsidebarresizer", "label": "setupSidebarResizer()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "setupSidebarResizer()", "community": 1, "community_name": "App Bootstrap", "source_file": "js/app.js", "file_type": "code", "degree": 1}, {"id": "js_db", "label": "db.js", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "db.js", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 1}, {"id": "js_db_database", "label": "Database", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 40.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Database", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 10}, {"id": "js_db_database_constructor", "label": ".constructor()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": ".constructor()", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 1}, {"id": "js_db_database_init", "label": ".init()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": ".init()", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 1}, {"id": "js_db_database_put", "label": ".put()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 16.0, "font": {"size": 12, "color": "#ffffff"}, "title": ".put()", "community": 2, "community_name": "Database Utils", "source_file": "js/db.js", "file_type": "code", "degree": 2}, {"id": "js_db_database_get", "label": ".get()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": ".get()", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 1}, {"id": "js_db_database_getall", "label": ".getAll()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 16.0, "font": {"size": 12, "color": "#ffffff"}, "title": ".getAll()", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 2}, {"id": "js_db_database_delete", "label": ".delete()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": ".delete()", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 1}, {"id": "js_db_database_clear", "label": ".clear()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 16.0, "font": {"size": 12, "color": "#ffffff"}, "title": ".clear()", "community": 2, "community_name": "Database Utils", "source_file": "js/db.js", "file_type": "code", "degree": 2}, {"id": "js_db_database_exportdata", "label": ".exportData()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 16.0, "font": {"size": 12, "color": "#ffffff"}, "title": ".exportData()", "community": 0, "community_name": "Database Core", "source_file": "js/db.js", "file_type": "code", "degree": 2}, {"id": "js_db_database_importdata", "label": ".importData()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": ".importData()", "community": 2, "community_name": "Database Utils", "source_file": "js/db.js", "file_type": "code", "degree": 3}, {"id": "js_inventory", "label": "inventory.js", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "inventory.js", "community": 3, "community_name": "Inventory Manager", "source_file": "js/inventory.js", "file_type": "code", "degree": 1}, {"id": "js_inventory_inventorymanager", "label": "InventoryManager", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "InventoryManager", "community": 3, "community_name": "Inventory Manager", "source_file": "js/inventory.js", "file_type": "code", "degree": 1}, {"id": "js_invoice", "label": "invoice.js", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "invoice.js", "community": 4, "community_name": "Invoice Builder", "source_file": "js/invoice.js", "file_type": "code", "degree": 1}, {"id": "js_invoice_invoicemanager", "label": "InvoiceManager", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "InvoiceManager", "community": 4, "community_name": "Invoice Builder", "source_file": "js/invoice.js", "file_type": "code", "degree": 1}, {"id": "js_profile", "label": "profile.js", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "profile.js", "community": 5, "community_name": "Profile Manager", "source_file": "js/profile.js", "file_type": "code", "degree": 1}, {"id": "js_profile_profilemanager", "label": "ProfileManager", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "ProfileManager", "community": 5, "community_name": "Profile Manager", "source_file": "js/profile.js", "file_type": "code", "degree": 1}, {"id": "js_utils", "label": "utils.js", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "utils.js", "community": 6, "community_name": "Utility Library", "source_file": "js/utils.js", "file_type": "code", "degree": 1}, {"id": "js_utils_utils", "label": "Utils", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Utils", "community": 6, "community_name": "Utility Library", "source_file": "js/utils.js", "file_type": "code", "degree": 1}];
-const RAW_EDGES = [{"from": "js_app", "to": "js_app_setupnavigation", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_app", "to": "js_app_setupsidebarresizer", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_app", "to": "js_app_setupsidebartoggle", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_app", "to": "js_app_setupthemetoggle", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db", "to": "js_db_database", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_clear", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_constructor", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_delete", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_exportdata", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_get", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_getall", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_importdata", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_init", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database", "to": "js_db_database_put", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database_put", "to": "js_db_database_importdata", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database_getall", "to": "js_db_database_exportdata", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_db_database_clear", "to": "js_db_database_importdata", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_inventory", "to": "js_inventory_inventorymanager", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_invoice", "to": "js_invoice_invoicemanager", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_profile", "to": "js_profile_profilemanager", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "js_utils", "to": "js_utils_utils", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}];
-const LEGEND = [{"cid": 0, "color": "#4E79A7", "label": "Database Core", "count": 8}, {"cid": 1, "color": "#F28E2B", "label": "App Bootstrap", "count": 5}, {"cid": 2, "color": "#E15759", "label": "Database Utils", "count": 3}, {"cid": 3, "color": "#76B7B2", "label": "Inventory Manager", "count": 2}, {"cid": 4, "color": "#59A14F", "label": "Invoice Builder", "count": 2}, {"cid": 5, "color": "#EDC948", "label": "Profile Manager", "count": 2}, {"cid": 6, "color": "#B07AA1", "label": "Utility Library", "count": 2}];
 
-// HTML-escape helper — prevents XSS when injecting graph data into innerHTML
+  <div id="stats">
+    <span id="stats-text">Loading graph.json…</span>
+    <button id="reload-btn" title="Re-fetch graph.json (pick up a fresh Graphify build)">↻ Reload</button>
+  </div>
+</aside>
+
+<script>
+'use strict';
+
+/* ============================================================================
+ * CONFIGURATION — edit these to restyle or retune the graph.
+ * ==========================================================================*/
+
+// Canonical graph data, written into this folder by `npx graphify build`.
+const DATA_URL = 'graph.json';
+
+// Optional sibling file: maps community id -> display name ("0": "Database Core").
+// If missing/unreadable, community names are derived from the data itself.
+const LABELS_URL = '.graphify_labels.json';
+
+// Degree at/below which a node counts as a "leaf" for the collapse filter.
+const LEAF_DEGREE = 1;
+
+// Community cluster palette (cycled through in sorted community-id order).
+const COMMUNITY_COLORS = [
+  '#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948',
+  '#B07AA1', '#FF9DA7', '#9C755F', '#BAB0AC', '#6B5B95', '#88B04B',
+];
+
+// Node colors by *derived* node type (see deriveType() below). File / class /
+// function / method cover AST output; 'doc' is for markdown-style nodes;
+// 'other' is the catch-all for anything new Graphify may emit.
+const TYPE_COLORS = {
+  file:     '#4E79A7',
+  class:    '#59A14F',
+  function: '#EDC948',
+  method:   '#E15759',
+  doc:      '#B07AA1',
+  other:    '#8C8C8C',
+};
+
+// Edge styling keyed off the link's `relation` field. If Graphify emits a new
+// relation type, it falls back to REL_STYLES.default.
+const REL_STYLES = {
+  contains:   { color: '#8a93a8', opacity: 0.35, dashes: false,  arrows: false },
+  method:     { color: '#7aa7d8', opacity: 0.55, dashes: false,  arrows: true  },
+  calls:      { color: '#f2a05e', opacity: 0.80, dashes: [5, 4], arrows: true  },
+  imports:    { color: '#7fc97f', opacity: 0.70, dashes: false,  arrows: true  },
+  references: { color: '#beaed4', opacity: 0.60, dashes: [2, 2], arrows: false },
+  default:    { color: '#b0b0c0', opacity: 0.60, dashes: false,  arrows: true  },
+};
+
+// Base physics. Scaled up in buildOptions() for large graphs, so small and
+// huge graphs both stay readable. See buildOptions() for the tuning knobs.
+const PHYSICS_BASE = {
+  solver: 'forceAtlas2Based',
+  forceAtlas2Based: {
+    gravitationalConstant: -50,   // more negative = stronger spread
+    centralGravity: 0.006,        // pulls clusters toward the center
+    springLength: 110,            // rest length between connected nodes
+    springConstant: 0.08,
+    damping: 0.4,
+    avoidOverlap: 0.6,
+  },
+};
+
+/* ============================================================================
+ * STATE
+ * ==========================================================================*/
+const state = {
+  hiddenCommunities: new Set(), // community ids to hide
+  hiddenTypes: new Set(),       // derived node types to hide
+  ext: 'all',                   // file-extension filter
+  rel: 'all',                   // edge-relation filter (dropdown)
+  collapseLeaves: false,        // hide nodes with degree <= LEAF_DEGREE
+  colorBy: 'community',         // 'community' | 'type'
+  edgeLabels: false,
+  labelMode: 'auto',            // 'auto' | 'all' | 'none'
+};
+
+let graphData = null;   // normalized { nodes, links, hyperedges, commit, communityNames }
+let nodesDS = null;     // vis.DataSet
+let edgesDS = null;     // vis.DataSet
+let network = null;
+
+/* ============================================================================
+ * SMALL HELPERS
+ * ==========================================================================*/
+
+// HTML-escape helper — prevents XSS when injecting graph data into innerHTML.
+// All values sourced from graph.json (which is machine-generated from repo
+// files, and may contain quotes/<>&) must pass through here before display.
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// Build vis datasets
-const nodesDS = new vis.DataSet(RAW_NODES.map(n => ({
-  id: n.id, label: n.label, color: n.color, size: n.size,
-  font: n.font, title: n.title,
-  _community: n.community, _community_name: n.community_name,
-  _source_file: n.source_file, _file_type: n.file_type, _degree: n.degree,
-})));
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-const edgesDS = new vis.DataSet(RAW_EDGES.map((e, i) => ({
-  id: i, from: e.from, to: e.to,
-  label: '',
-  title: e.title,
-  dashes: e.dashes,
-  width: e.width,
-  color: e.color,
-  arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-})));
+function extOf(file) {
+  if (!file) return '?';
+  const m = String(file).match(/\.([A-Za-z0-9]+)$/);
+  return m ? m[1].toLowerCase() : '?';
+}
 
-const container = document.getElementById('graph');
-const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
-  physics: {
+// Graphify's graph.json stores every node with file_type "code"; the real kind
+// is recoverable from the label/path shape. Update this if your output changes.
+function deriveType(n) {
+  const label = n.label || '';
+  const file = n.source_file || '';
+  const base = file.split(/[\\/]/).pop() || '';
+  if (label === base && base) {
+    // A node whose label IS its source file's basename is a file node.
+    return ['md', 'markdown', 'txt', 'rst', 'adoc'].includes(extOf(base)) ? 'doc' : 'file';
+  }
+  if (label.startsWith('.')) return 'method';   // .init(), .put(), .clear()
+  if (label.endsWith('()')) return 'function';  // setupNavigation(), render()
+  return 'class';                               // Database, InvoiceManager, ...
+}
+
+// Fallback community names derived purely from graph.json: the most frequent
+// source-file stem inside each community ("db", "invoice", ...) -> "Db", "Invoice".
+function deriveCommunityNames(nodes) {
+  const byCid = new Map();
+  nodes.forEach(n => {
+    if (!byCid.has(n.community)) byCid.set(n.community, []);
+    byCid.get(n.community).push(n);
+  });
+  const names = {};
+  byCid.forEach((members, cid) => {
+    const counts = {};
+    members.forEach(n => {
+      const stem = (n.source_file || 'unknown').split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || 'unknown';
+      counts[stem] = (counts[stem] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    let name = top ? top[0].replace(/[_-]+/g, ' ') : ('Community ' + cid);
+    name = name.replace(/\b\w/g, c => c.toUpperCase()); // title-case the stem
+    names[cid] = name;
+  });
+  return names;
+}
+
+/* ============================================================================
+ * DATA LOADING — everything comes from graph.json at runtime.
+ * ==========================================================================*/
+async function loadData() {
+  // no-store so the Reload button always picks up a fresh Graphify build
+  const [graphRes, labelsRes] = await Promise.all([
+    fetch(DATA_URL, { cache: 'no-store' }),
+    fetch(LABELS_URL, { cache: 'no-store' }).catch(() => null),
+  ]);
+
+  if (!graphRes.ok) {
+    throw new Error('HTTP ' + graphRes.status + ' while fetching ' + DATA_URL);
+  }
+  let raw;
+  try {
+    raw = await graphRes.json();
+  } catch (e) {
+    throw new Error(DATA_URL + ' is not valid JSON: ' + e.message);
+  }
+
+  // Accept either links or edges as the edge array (graphify calls it "links").
+  const nodes = Array.isArray(raw.nodes) ? raw.nodes : null;
+  const links = Array.isArray(raw.links) ? raw.links : (Array.isArray(raw.edges) ? raw.edges : null);
+  if (!nodes || !links) {
+    throw new Error(DATA_URL + ' is malformed — expected { nodes: [...], links: [...] }');
+  }
+
+  // Optional community-name overrides from .graphify_labels.json.
+  let labelOverrides = null;
+  if (labelsRes && labelsRes.ok) {
+    try { labelOverrides = await labelsRes.json(); } catch (e) { /* ignore */ }
+  }
+
+  return { nodes, links, hyperedges: Array.isArray(raw.hyperedges) ? raw.hyperedges : [], commit: raw.built_at_commit || null, labelOverrides };
+}
+
+// Normalize raw graph.json records into the shape the viewer consumes.
+function normalize(raw) {
+  const degree = new Map(); // id -> degree (count of incident links)
+  raw.links.forEach(l => {
+    degree.set(l.source, (degree.get(l.source) || 0) + 1);
+    degree.set(l.target, (degree.get(l.target) || 0) + 1);
+  });
+
+  // Stable community→color mapping (sorted ids, so colors don't shift when
+  // Graphify renumbers communities).
+  const commIds = [...new Set(raw.nodes.map(n => n.community))].sort((a, b) => a - b);
+  const commColor = new Map(commIds.map((c, i) => [c, COMMUNITY_COLORS[i % COMMUNITY_COLORS.length]]));
+
+  const communityNames = raw.labelOverrides && typeof raw.labelOverrides === 'object'
+    ? Object.fromEntries(Object.entries(raw.labelOverrides).map(([k, v]) => [Number(k), String(v)]))
+    : deriveCommunityNames(raw.nodes);
+
+  const nodes = raw.nodes.map(n => {
+    const type = deriveType(n);
+    const deg = degree.get(n.id) || 0;
+    return {
+      ...n,                       // keep every original field (metadata panel shows extras)
+      _type: type,
+      _ext: extOf(n.source_file),
+      _degree: deg,
+      _community_name: communityNames[n.community] || ('Community ' + n.community),
+      _color: commColor.get(n.community) || TYPE_COLORS.other,
+    };
+  });
+
+  const links = raw.links.map((l, i) => ({ ...l, id: i }));
+
+  return { nodes, links, commIds, commColor, communityNames, hyperedges: raw.hyperedges, commit: raw.commit };
+}
+
+/* ============================================================================
+ * VISUALIZATION BUILD
+ * ==========================================================================*/
+
+// Node size scales with degree (hub nodes stand out), clamped for sanity.
+// For very large graphs the sqrt keeps the spread gentle.
+function nodeSize(deg) {
+  return clamp(12 + Math.sqrt(deg) * 8, 12, 48);
+}
+
+// vis color object for a given background hex (white highlight on select/hover).
+function visColor(bg) {
+  return {
+    background: bg,
+    border: bg,
+    highlight: { background: '#ffffff', border: bg },
+    hover: { background: bg, border: '#ffffff' },
+  };
+}
+
+// Whether a node's label is drawn, based on the current label mode.
+function labelSizeFor(n, nodeCount) {
+  if (state.labelMode === 'all') return 12;
+  if (state.labelMode === 'none') return 0;
+  // auto: label files/classes and hubs (deg>=2); hide leaf labels when crowded
+  if (nodeCount > 120) return n._degree >= 2 ? 11 : 0;
+  return n._type === 'file' || n._type === 'class' || n._degree >= 2 ? 12 : 10;
+}
+
+function buildOptions(nodeCount) {
+  // ---- Layout tuning ----
+  // Physics constants scale with graph size so that both a 20-node repo and a
+  // 2,000-node monorepo lay out cleanly. Tweak here (or in PHYSICS_BASE above).
+  const scale = Math.max(1, Math.sqrt(nodeCount / 50)); // 1x at 50 nodes
+  const physics = {
     enabled: true,
-    solver: 'forceAtlas2Based',
+    solver: nodeCount > 400 ? 'barnesHut' : 'forceAtlas2Based', // barnesHut is faster for huge graphs
     forceAtlas2Based: {
-      gravitationalConstant: -60,
-      centralGravity: 0.005,
-      springLength: 120,
-      springConstant: 0.08,
-      damping: 0.4,
-      avoidOverlap: 0.8,
+      gravitationalConstant: PHYSICS_BASE.forceAtlas2Based.gravitationalConstant * scale,
+      centralGravity: PHYSICS_BASE.forceAtlas2Based.centralGravity,
+      springLength: Math.min(260, PHYSICS_BASE.forceAtlas2Based.springLength * scale),
+      springConstant: PHYSICS_BASE.forceAtlas2Based.springConstant,
+      damping: PHYSICS_BASE.forceAtlas2Based.damping,
+      avoidOverlap: PHYSICS_BASE.forceAtlas2Based.avoidOverlap,
     },
-    stabilization: { iterations: 200, fit: true },
-  },
-  interaction: {
-    hover: true,
-    tooltipDelay: 100,
-    hideEdgesOnDrag: true,
-    navigationButtons: false,
-    keyboard: false,
-  },
-  nodes: { shape: 'dot', borderWidth: 1.5 },
-  edges: { smooth: { type: 'continuous', roundness: 0.2 }, selectionWidth: 3 },
-});
+    stabilization: {
+      iterations: Math.min(600, 150 + nodeCount * 4),
+      fit: true,
+    },
+  };
 
-network.once('stabilizationIterationsDone', () => {
-  network.setOptions({ physics: { enabled: false } });
-});
+  return {
+    physics,
+    interaction: {
+      hover: true,
+      tooltipDelay: 80,
+      hideEdgesOnDrag: true,   // declutter while dragging big graphs
+      navigationButtons: false,
+      keyboard: false,
+      multiselect: false,
+    },
+    nodes: { shape: 'dot', borderWidth: 1.5 },
+    edges: {
+      // continuous smoothing is pretty but expensive — disable on huge graphs
+      smooth: nodeCount > 200 ? { enabled: false } : { type: 'continuous', roundness: 0.2 },
+      selectionWidth: 3,
+    },
+  };
+}
+
+// Initial positions: place each community's nodes around its own spot on a
+// circle, then let physics refine. This uses graph.json's community field for
+// layout and makes clusters visually distinct from the first frame.
+function communitySeedPositions(nodes, commIds) {
+  const byCid = new Map();
+  nodes.forEach(n => {
+    if (!byCid.has(n.community)) byCid.set(n.community, []);
+    byCid.get(n.community).push(n);
+  });
+  const radius = Math.max(240, commIds.length * 70 + nodes.length * 3);
+  commIds.forEach((cid, i) => {
+    const angle = (i / commIds.length) * 2 * Math.PI - Math.PI / 2;
+    const cx = Math.cos(angle) * radius;
+    const cy = Math.sin(angle) * radius;
+    (byCid.get(cid) || []).forEach((n, j) => {
+      n.x = cx + ((j % 6) * 22 - 55);          // spread within the cluster
+      n.y = cy + ((j * 11) % 60 - 30);
+    });
+  });
+}
+
+function edgeStyleFor(rel, weight) {
+  const s = REL_STYLES[rel] || REL_STYLES.default;
+  return {
+    color: { color: s.color, opacity: s.opacity },
+    dashes: s.dashes,
+    arrows: { to: { enabled: s.arrows, scaleFactor: 0.4 } },
+    width: clamp(0.6 + (weight || 1) * 1.4, 0.6, 4),
+  };
+}
+
+function buildGraph(raw) {
+  // Normalize once; keep references so filters can re-apply cheaply.
+  graphData = normalize(raw);
+
+  // Seed cluster positions (community-aware layout).
+  communitySeedPositions(graphData.nodes, graphData.commIds);
+
+  // ---- vis datasets ----
+  nodesDS = new vis.DataSet(graphData.nodes.map(n => {
+    const bg = state.colorBy === 'type' ? (TYPE_COLORS[n._type] || TYPE_COLORS.other) : n._color;
+    return {
+      id: n.id,
+      label: n.label,
+      color: visColor(bg),
+      size: nodeSize(n._degree),
+      font: {
+        size: labelSizeFor(n, graphData.nodes.length),
+        color: '#ffffff',
+        strokeWidth: 2,
+        strokeColor: '#0f0f1a',
+      },
+      title:
+        '<b>' + esc(n.label) + '</b><br>' +
+        'Type: ' + esc(n._type) + '<br>' +
+        'File: ' + esc(n.source_file || '-') + (n.source_location ? ' · ' + esc(n.source_location) : '') + '<br>' +
+        'Community: ' + esc(n._community_name) + ' (#' + n.community + ')<br>' +
+        'Degree: ' + n._degree,
+      hidden: false,
+      // metadata kept on the node for the info panel / filters
+      _type: n._type, _ext: n._ext, _file: n.source_file, _loc: n.source_location,
+      _community: n.community, _community_name: n._community_name, _degree: n._degree,
+      _norm: n.norm_label, _origin: n._origin, _file_type: n.file_type, _raw: n,
+    };
+  }));
+
+  edgesDS = new vis.DataSet(graphData.links.map(l => {
+    const st = edgeStyleFor(l.relation, l.weight);
+    return {
+      id: l.id,
+      from: l.source,
+      to: l.target,
+      _rel: l.relation,
+      label: '', // set by the "Show edge labels" toggle
+      font: { size: 10, color: '#8a8a9e', strokeWidth: 2, strokeColor: '#0f0f1a', align: 'middle' },
+      title:
+        '<b>' + esc(l.relation) + '</b> [' + esc(l.confidence || '') + ']<br>' +
+        'weight ' + (l.weight != null ? l.weight : '-') +
+        (l.confidence_score != null ? ' · score ' + l.confidence_score : '') +
+        (l.source_location ? '<br>' + esc(l.source_file || '') + ' ' + esc(l.source_location) : ''),
+      ...st,
+    };
+  }));
+
+  const container = document.getElementById('graph');
+  network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, buildOptions(graphData.nodes.length));
+
+  // Freeze physics once settled (keeps drag interactions snappy).
+  network.once('stabilizationIterationsDone', () => {
+    network.setOptions({ physics: { enabled: false } });
+  });
+
+  bindNetworkEvents();
+  buildCommunityLegend();
+  buildTypeLegend();
+  buildExtFilter();
+  buildRelFilter();
+  updateStats();
+  applyFilters();          // enforces all filter state on the fresh datasets
+  applyColors();
+  applyEdgeLabels();
+  applyLabelFonts();
+}
+
+/* ============================================================================
+ * FILTERS
+ * ==========================================================================*/
+
+// A node is hidden if ANY active filter excludes it.
+function nodeHidden(n) {
+  if (state.hiddenCommunities.has(n.community)) return true;
+  if (state.hiddenTypes.has(n._type)) return true;
+  if (state.ext !== 'all' && n._ext !== state.ext) return true;
+  if (state.collapseLeaves && n._degree <= LEAF_DEGREE) return true;
+  return false;
+}
+
+// Push the current filter state into the vis dataset. Edges attached to hidden
+// nodes are hidden automatically by vis-network.
+function applyFilters() {
+  if (!nodesDS) return;
+  nodesDS.update(graphData.nodes.map(n => ({ id: n.id, hidden: nodeHidden(n) })));
+  applyEdgeVisibility(); // also refresh edge visibility when node filters change
+  updateSelectAllState();
+  updateSearchResults(); // keep the search result list consistent with visibility
+}
+
+function applyColors() {
+  if (!nodesDS) return;
+  nodesDS.update(graphData.nodes.map(n => {
+    const bg = state.colorBy === 'type' ? (TYPE_COLORS[n._type] || TYPE_COLORS.other) : n._color;
+    return { id: n.id, color: visColor(bg) };
+  }));
+}
+
+function applyEdgeLabels() {
+  if (!edgesDS) return;
+  edgesDS.update(graphData.links.map(l => ({ id: l.id, label: state.edgeLabels ? l.relation : '' })));
+}
+
+// Hide edges whose relation type is filtered out, or whose source/target is hidden.
+function applyEdgeVisibility() {
+  if (!edgesDS) return;
+  edgesDS.update(graphData.links.map(l => {
+    const relHidden = state.rel !== 'all' && l.relation !== state.rel;
+    return { id: l.id, hidden: relHidden };
+  }));
+}
+
+function applyLabelFonts() {
+  if (!nodesDS) return;
+  nodesDS.update(graphData.nodes.map(n => ({
+    id: n.id,
+    font: Object.assign({}, nodesDS.get(n.id).font, { size: labelSizeFor(n, graphData.nodes.length) }),
+  })));
+}
+
+/* ============================================================================
+ * NETWORK EVENTS (hover / click / info panel / neighbors)
+ * ==========================================================================*/
+function bindNetworkEvents() {
+  const container = document.getElementById('graph');
+
+  let hoveredNodeId = null;
+  network.on('hoverNode', p => { hoveredNodeId = p.node; container.style.cursor = 'pointer'; });
+  network.on('blurNode', () => { hoveredNodeId = null; container.style.cursor = 'default'; });
+
+  container.addEventListener('click', () => {
+    if (hoveredNodeId !== null) {
+      showInfo(hoveredNodeId);
+      network.selectNodes([hoveredNodeId]);
+    }
+  });
+
+  network.on('click', p => {
+    if (p.nodes.length > 0) {
+      showInfo(p.nodes[0]);
+    } else if (hoveredNodeId === null) {
+      document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+    }
+  });
+
+  // Neighbor links use a data attribute + one delegated listener rather than an
+  // inline onclick. Node ids/labels sourced from repo files can contain a
+  // double-quote; dropping the stringified id unescaped into a quoted onclick
+  // would break every link and allow a hostile source to inject an event
+  // handler into the local report (stored XSS). esc() on data-nid keeps the
+  // value inside the attribute; the listener reads it back verbatim. Bound to
+  // document so it survives the innerHTML rebuild in showInfo().
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.neighbor-link');
+    if (el && el.dataset.nid !== undefined) focusNode(el.dataset.nid);
+  });
+}
+
+// Full metadata panel for the selected node. Known fields are formatted
+// specifically; any OTHER fields present on the node (summary, keywords,
+// docstring, ...) are rendered generically, so new Graphify metadata shows up
+// automatically without editing this file.
+const KNOWN_NODE_FIELDS = new Set(['id', 'label', 'norm_label', 'file_type', 'source_file', 'source_location', '_origin', 'community', '_type', '_ext', '_degree', '_community_name', '_color']);
 
 function showInfo(nodeId) {
   const n = nodesDS.get(nodeId);
-  if (!n) return;
-  const neighborIds = network.getConnectedNodes(nodeId);
-  const neighborItems = neighborIds.map(nid => {
-    const nb = nodesDS.get(nid);
+  if (!n || !n._raw) return;
+
+  const r = n._raw;
+  const extraFields = Object.keys(r)
+    .filter(k => !KNOWN_NODE_FIELDS.has(k))
+    .map(k => '<div class="field"><b>' + esc(k) + ':</b> ' + esc(r[k] == null ? '-' : (typeof r[k] === 'object' ? JSON.stringify(r[k]) : r[k])) + '</div>')
+    .join('');
+
+  // Neighbors with the relation type of each connecting edge.
+  const connectedEdges = network.getConnectedEdges(nodeId);
+  const neighborItems = connectedEdges.map(eid => {
+    const e = edgesDS.get(eid);
+    if (!e) return '';
+    const other = e.from === nodeId ? e.to : e.from;
+    const nb = nodesDS.get(other);
     const color = nb ? nb.color.background : '#555';
-    return `<span class="neighbor-link" style="border-left-color:${esc(color)}" data-nid="${esc(nid)}">${esc(nb ? nb.label : nid)}</span>`;
+    return '<div class="neighbor-link" data-nid="' + esc(other) + '">' +
+      '<span class="neighbor-dot" style="background:' + esc(color) + '"></span>' +
+      '<span class="neighbor-label">' + esc(nb ? nb.label : other) + '</span>' +
+      '<span class="neighbor-rel">' + esc(e._rel || '') + '</span></div>';
   }).join('');
-  document.getElementById('info-content').innerHTML = `
-    <div class="field"><b>${esc(n.label)}</b></div>
-    <div class="field">Type: ${esc(n._file_type || 'unknown')}</div>
-    <div class="field">Community: ${esc(n._community_name)}</div>
-    <div class="field">Source: ${esc(n._source_file || '-')}</div>
-    <div class="field">Degree: ${n._degree}</div>
-    ${neighborIds.length ? `<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (${neighborIds.length})</div><div id="neighbors-list">${neighborItems}</div>` : ''}
-  `;
+
+  const typeColor = TYPE_COLORS[n._type] || TYPE_COLORS.other;
+  document.getElementById('info-content').innerHTML =
+    '<div class="field"><b>' + esc(n.label) + '</b>' +
+    '<span class="type-badge" style="background:' + esc(typeColor) + '">' + esc(n._type) + '</span></div>' +
+    '<div class="field">File: ' + esc(n._file || '-') + (n._loc ? ' · ' + esc(n._loc) : '') + '</div>' +
+    '<div class="field">Community: ' + esc(n._community_name) + ' (#' + n._community + ')</div>' +
+    '<div class="field">Degree: ' + n._degree + '</div>' +
+    (n._norm ? '<div class="field">Normalized: ' + esc(n._norm) + '</div>' : '') +
+    (n._origin ? '<div class="field">Origin: ' + esc(n._origin) + '</div>' : '') +
+    extraFields +
+    (neighborItems ? '<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (' + connectedEdges.length + ')</div><div id="neighbors-list">' + neighborItems + '</div>' : '');
 }
 
 function focusNode(nodeId) {
@@ -148,173 +729,272 @@ function focusNode(nodeId) {
   showInfo(nodeId);
 }
 
-// Neighbor links use a data attribute + one delegated listener rather than an
-// inline onclick. A node id/label sourced from a document or a scraped URL
-// (graphify add) can contain a double-quote; dropping the stringified id
-// unescaped into a quoted onclick both broke every link and allowed a hostile
-// source to inject an event handler into the local report (stored XSS, #1838).
-// esc() on data-nid keeps the value inside the attribute; the listener reads it
-// back verbatim. Bound to document so it survives the innerHTML rebuild that
-// recreates #neighbors-list on each showInfo().
-document.addEventListener('click', e => {
-  const el = e.target.closest('.neighbor-link');
-  if (el && el.dataset.nid !== undefined) focusNode(el.dataset.nid);
-});
-
-// Track hovered node — hover detection is more reliable than click params
-let hoveredNodeId = null;
-network.on('hoverNode', params => {
-  hoveredNodeId = params.node;
-  container.style.cursor = 'pointer';
-});
-network.on('blurNode', () => {
-  hoveredNodeId = null;
-  container.style.cursor = 'default';
-});
-container.addEventListener('click', () => {
-  if (hoveredNodeId !== null) {
-    showInfo(hoveredNodeId);
-    network.selectNodes([hoveredNodeId]);
-  }
-});
-network.on('click', params => {
-  if (params.nodes.length > 0) {
-    showInfo(params.nodes[0]);
-  } else if (hoveredNodeId === null) {
-    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
-  }
-});
-
+/* ============================================================================
+ * SEARCH — matches label, normalized label, path and id.
+ * ==========================================================================*/
 const searchInput = document.getElementById('search');
 const searchResults = document.getElementById('search-results');
-searchInput.addEventListener('input', () => {
+
+function updateSearchResults() {
+  if (!graphData) return;
   const q = searchInput.value.toLowerCase().trim();
   searchResults.innerHTML = '';
   if (!q) { searchResults.style.display = 'none'; return; }
-  const matches = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 20);
+
+  const hidden = new Set(graphData.nodes.filter(n => nodeHidden(n)).map(n => n.id));
+  const matches = graphData.nodes.filter(n => {
+    if (hidden.has(n.id)) return false; // don't offer nodes the user has filtered out
+    const hay = (n.label + ' ' + (n.norm_label || '') + ' ' + (n.source_file || '') + ' ' + n.id).toLowerCase();
+    return hay.includes(q);
+  }).slice(0, 30);
+
   if (!matches.length) { searchResults.style.display = 'none'; return; }
   searchResults.style.display = 'block';
   matches.forEach(n => {
     const el = document.createElement('div');
     el.className = 'search-item';
-    el.textContent = n.label;
-    el.style.borderLeft = `3px solid ${n.color.background}`;
-    el.style.paddingLeft = '8px';
+    const bg = state.colorBy === 'type' ? (TYPE_COLORS[n._type] || TYPE_COLORS.other) : n._color;
+    el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + esc(bg) + ';margin-right:6px"></span>' +
+      esc(n.label) + ' <small>' + esc(n.source_file || n.id) + '</small>';
     el.onclick = () => {
-      network.focus(n.id, { scale: 1.5, animation: true });
-      network.selectNodes([n.id]);
-      showInfo(n.id);
+      focusNode(n.id);
       searchResults.style.display = 'none';
       searchInput.value = '';
     };
     searchResults.appendChild(el);
   });
-});
+}
+
+searchInput.addEventListener('input', updateSearchResults);
 document.addEventListener('click', e => {
-  if (!searchResults.contains(e.target) && e.target !== searchInput)
-    searchResults.style.display = 'none';
+  if (!searchResults.contains(e.target) && e.target !== searchInput) searchResults.style.display = 'none';
 });
 
-const hiddenCommunities = new Set();
-
+/* ============================================================================
+ * LEGENDS (communities + node types) — each item doubles as a filter toggle.
+ * ==========================================================================*/
+const legendEl = document.getElementById('legend');
+const typeLegendEl = document.getElementById('type-legend');
 const selectAllCb = document.getElementById('select-all-cb');
 
+function legendCheckboxItem(container, dotColor, label, count, isChecked, onChange) {
+  const item = document.createElement('div');
+  item.className = 'legend-item' + (isChecked ? '' : ' dimmed');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = 'cb';
+  cb.checked = isChecked;
+  cb.addEventListener('change', e => {
+    e.stopPropagation();
+    onChange(cb.checked);
+    item.classList.toggle('dimmed', !cb.checked);
+  });
+  item.appendChild(cb);
+  item.innerHTML += '<div class="legend-dot" style="background:' + esc(dotColor) + '"></div>' +
+    '<span class="legend-label">' + esc(label) + '</span>' +
+    '<span class="legend-count">' + count + '</span>';
+  item.onclick = e => {
+    if (e.target === cb) return;
+    cb.checked = !cb.checked;
+    cb.dispatchEvent(new Event('change'));
+  };
+  container.appendChild(item);
+  return cb;
+}
+
+function buildCommunityLegend() {
+  legendEl.innerHTML = '';
+  const counts = new Map();
+  graphData.nodes.forEach(n => counts.set(n.community, (counts.get(n.community) || 0) + 1));
+  graphData.commIds.forEach(cid => {
+    legendCheckboxItem(legendEl, graphData.commColor.get(cid), graphData.communityNames[cid] || ('Community ' + cid), counts.get(cid) || 0, !state.hiddenCommunities.has(cid), checked => {
+      if (checked) state.hiddenCommunities.delete(cid); else state.hiddenCommunities.add(cid);
+      applyFilters();
+    });
+  });
+  updateSelectAllState();
+}
+
+function buildTypeLegend() {
+  typeLegendEl.innerHTML = '';
+  const counts = new Map();
+  graphData.nodes.forEach(n => counts.set(n._type, (counts.get(n._type) || 0) + 1));
+  [...counts.keys()].sort().forEach(type => {
+    legendCheckboxItem(typeLegendEl, TYPE_COLORS[type] || TYPE_COLORS.other, type, counts.get(type), !state.hiddenTypes.has(type), checked => {
+      if (checked) state.hiddenTypes.delete(type); else state.hiddenTypes.add(type);
+      applyFilters();
+    });
+  });
+}
+
 function updateSelectAllState() {
-  const total = LEGEND.length;
-  const hidden = hiddenCommunities.size;
+  const total = graphData ? graphData.commIds.length : 0;
+  const hidden = state.hiddenCommunities.size;
   selectAllCb.checked = hidden === 0;
   selectAllCb.indeterminate = hidden > 0 && hidden < total;
 }
 
 function toggleAllCommunities(hide) {
-  document.querySelectorAll('.legend-item').forEach(item => {
-    hide ? item.classList.add('dimmed') : item.classList.remove('dimmed');
+  document.querySelectorAll('#legend .legend-item').forEach(item => item.classList.toggle('dimmed', hide));
+  document.querySelectorAll('#legend .cb').forEach(cb => { cb.checked = !hide; });
+  graphData.commIds.forEach(cid => {
+    if (hide) state.hiddenCommunities.add(cid); else state.hiddenCommunities.delete(cid);
   });
-  document.querySelectorAll('.legend-cb').forEach(cb => {
-    cb.checked = !hide;
-  });
-  LEGEND.forEach(c => {
-    if (hide) hiddenCommunities.add(c.cid); else hiddenCommunities.delete(c.cid);
-  });
-  const updates = RAW_NODES.map(n => ({ id: n.id, hidden: hide }));
-  nodesDS.update(updates);
-  updateSelectAllState();
+  applyFilters();
 }
 
-const legendEl = document.getElementById('legend');
-LEGEND.forEach(c => {
-  const item = document.createElement('div');
-  item.className = 'legend-item';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.className = 'legend-cb';
-  cb.checked = true;
-  cb.addEventListener('change', (e) => {
-    e.stopPropagation();
-    if (cb.checked) {
-      hiddenCommunities.delete(c.cid);
-      item.classList.remove('dimmed');
-    } else {
-      hiddenCommunities.add(c.cid);
-      item.classList.add('dimmed');
-    }
-    const updates = RAW_NODES
-      .filter(n => n.community === c.cid)
-      .map(n => ({ id: n.id, hidden: !cb.checked }));
-    nodesDS.update(updates);
-    updateSelectAllState();
+/* ============================================================================
+ * EXTENSION FILTER
+ * ==========================================================================*/
+const extFilter = document.getElementById('ext-filter');
+
+function buildExtFilter() {
+  extFilter.innerHTML = '<option value="all">All files</option>';
+  const exts = [...new Set(graphData.nodes.map(n => n._ext).filter(e => e !== '?'))].sort();
+  exts.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e;
+    opt.textContent = '.' + e + ' files';
+    extFilter.appendChild(opt);
   });
-  item.innerHTML = `<div class="legend-dot" style="background:${c.color}"></div>
-    <span class="legend-label">${c.label}</span>
-    <span class="legend-count">${c.count}</span>`;
-  item.prepend(cb);
-  item.onclick = (e) => {
-    if (e.target === cb) return;
-    cb.checked = !cb.checked;
-    cb.dispatchEvent(new Event('change'));
-  };
-  legendEl.appendChild(item);
+  extFilter.value = state.ext;
+}
+
+const relFilter = document.getElementById('rel-filter');
+
+function buildRelFilter() {
+  relFilter.innerHTML = '<option value="all">All relations</option>';
+  const rels = [...new Set(graphData.links.map(l => l.relation))].sort();
+  rels.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    relFilter.appendChild(opt);
+  });
+  relFilter.value = state.rel;
+}
+
+relFilter.addEventListener('change', () => { state.rel = relFilter.value; applyFilters(); });
+
+/* ============================================================================
+ * OTHER CONTROLS
+ * ==========================================================================*/
+document.getElementById('color-by').addEventListener('change', e => {
+  state.colorBy = e.target.value;
+  applyColors();
+  applyLabelFonts(); // node labels share color scheme; re-render is cheap
+  updateSearchResults();
 });
-</script>
-<script>
-// Render hyperedges as shaded regions
-const hyperedges = [];
-// afterDrawing passes ctx already transformed to network coordinate space.
-// Draw node positions raw — no manual pan/zoom/DPR math needed.
-network.on('afterDrawing', function(ctx) {
+document.getElementById('collapse-leaves').addEventListener('change', e => {
+  state.collapseLeaves = e.target.checked;
+  applyFilters();
+});
+document.getElementById('edge-labels').addEventListener('change', e => {
+  state.edgeLabels = e.target.checked;
+  applyEdgeLabels();
+});
+document.getElementById('label-mode').addEventListener('change', e => {
+  state.labelMode = e.target.value;
+  applyLabelFonts();
+});
+document.getElementById('fit-btn').addEventListener('click', () => network && network.fit({ animation: true }));
+document.getElementById('reload-btn').addEventListener('click', () => init());
+
+/* ============================================================================
+ * STATS
+ * ==========================================================================*/
+function updateStats() {
+  const el = document.getElementById('stats-text');
+  const commit = graphData.commit ? graphData.commit.slice(0, 7) : null;
+  el.textContent = graphData.nodes.length + ' nodes · ' + graphData.links.length + ' edges · ' +
+    graphData.commIds.length + ' communities' + (commit ? ' · commit ' + commit : '') +
+    ' · from ' + DATA_URL;
+}
+
+/* ============================================================================
+ * HYPEREDGES — shaded regions drawn on the canvas (graph.json "hyperedges").
+ * Graphify currently emits none for this repo; the renderer is wired up so
+ * any future hyperedges ({ label?, nodes: [ids] }) appear automatically.
+ * ==========================================================================*/
+let hyperedges = [];
+function buildHyperedges(rawHyperedges) {
+  hyperedges = (rawHyperedges || [])
+    .filter(h => h && Array.isArray(h.nodes) && h.nodes.length >= 2)
+    .map(h => ({ label: h.label || h.name || 'group', nodes: h.nodes, color: h.color || '#6366f1' }));
+}
+
+// afterDrawing passes ctx already transformed to network coordinate space, so
+// node positions can be drawn raw — no manual pan/zoom/DPR math needed.
+function bindHyperedgeRendering() {
+  network.on('afterDrawing', function (ctx) {
     hyperedges.forEach(h => {
-        const positions = h.nodes
-            .map(nid => network.getPositions([nid])[nid])
-            .filter(p => p !== undefined);
-        if (positions.length < 2) return;
-        ctx.save();
-        ctx.globalAlpha = 0.12;
-        ctx.fillStyle = '#6366f1';
-        ctx.strokeStyle = '#6366f1';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        // Centroid and expanded hull in network coordinates
-        const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
-        const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
-        const expanded = positions.map(p => ({
-            x: cx + (p.x - cx) * 1.15,
-            y: cy + (p.y - cy) * 1.15
-        }));
-        ctx.moveTo(expanded[0].x, expanded[0].y);
-        expanded.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = 0.4;
-        ctx.stroke();
-        // Label
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = '#4f46e5';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(h.label, cx, cy - 5);
-        ctx.restore();
+      const positions = h.nodes
+        .map(nid => network.getPositions([nid])[nid])
+        .filter(p => p !== undefined);
+      if (positions.length < 2) return;
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = h.color;
+      ctx.strokeStyle = h.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
+      const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
+      const expanded = positions.map(p => ({ x: cx + (p.x - cx) * 1.15, y: cy + (p.y - cy) * 1.15 }));
+      ctx.moveTo(expanded[0].x, expanded[0].y);
+      expanded.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 0.4;
+      ctx.stroke();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#4f46e5';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(h.label, cx, cy - 5);
+      ctx.restore();
     });
-});
+  });
+}
+
+/* ============================================================================
+ * BOOTSTRAP / ERROR HANDLING
+ * ==========================================================================*/
+function showError(err) {
+  const banner = document.getElementById('error-banner');
+  let msg = 'Could not load <code>' + esc(DATA_URL) + '</code>: ' + esc(err && err.message ? err.message : String(err));
+  if (location.protocol === 'file:') {
+    msg += '<br><br>You opened this page directly from disk (<code>file://</code>) — browsers block <code>fetch()</code> for local files. ' +
+      'Serve the <code>graphify-out/</code> folder over HTTP instead, e.g.:<br>' +
+      '<code>python -m http.server 8000</code> &nbsp;then open&nbsp; <code>http://localhost:8000/graph.html</code><br>' +
+      'or: <code>npx serve .</code>';
+  } else {
+    msg += '<br><br>Make sure Graphify was run (<code>npx graphify build</code>) so <code>' + esc(DATA_URL) + '</code> exists next to this file.';
+  }
+  document.getElementById('error-message').innerHTML = msg;
+  banner.classList.add('visible');
+  document.getElementById('stats-text').textContent = 'Failed to load graph data';
+}
+
+async function init() {
+  // Tear down any previous graph (used by the Reload button).
+  if (network) network.destroy();
+  nodesDS = null; edgesDS = null; network = null; hyperedges = [];
+  document.getElementById('error-banner').classList.remove('visible');
+  document.getElementById('stats-text').textContent = 'Loading ' + DATA_URL + '…';
+
+  try {
+    const raw = await loadData();
+    buildGraph(raw);
+    buildHyperedges(raw.hyperedges);
+    bindHyperedgeRendering();
+  } catch (err) {
+    showError(err);
+  }
+}
+
+// Kick everything off — the data comes from graph.json at runtime.
+init();
 </script>
 </body>
 </html>

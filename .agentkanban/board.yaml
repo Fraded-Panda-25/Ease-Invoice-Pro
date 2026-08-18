@@ -2,6 +2,7 @@ lanes:
   - todo
   - doing
   - done
+  - fixme
 users:
   - Pritam Paul
 labels:

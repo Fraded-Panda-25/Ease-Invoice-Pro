@@ -58,6 +58,24 @@
             </svg>
             Dashboard (Invoice)
           </a>
+          <a href="#customers" class="nav-link" data-target="view-customers">
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              stroke="currentColor"
+              stroke-width="2"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            Customers
+          </a>
           <a href="#inventory" class="nav-link" data-target="view-inventory">
             <svg
               viewBox="0 0 24 24"
@@ -269,15 +287,58 @@
 
             <!-- Invoice History List -->
             <div id="invoice-history" class="no-print">
-              <h3 class="section-title">Recent Invoices</h3>
-              <div class="search-bar" style="margin-bottom: 1rem">
-                <input
-                  type="text"
-                  id="search-history"
-                  placeholder="Search by customer name or invoice number..."
-                  class="form-control"
-                />
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+                <h3 class="section-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Recent Invoices</h3>
+                
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; max-width: 500px; justify-content: flex-end;">
+                  <div class="search-bar" style="margin-bottom: 0; flex: 1;">
+                    <input
+                      type="text"
+                      id="search-history"
+                      placeholder="Search by customer name or invoice #..."
+                      class="form-control"
+                    />
+                  </div>
+
+                  <!-- Invoices Download Dropdown -->
+                  <div class="dropdown" id="invoices-download-dropdown" style="position: relative; display: inline-block;">
+                    <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-invoices-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download recent invoices">
+                      📥 Download ▾
+                    </button>
+                    <div class="dropdown-menu" id="invoices-download-menu" style="display: none;">
+                      <button type="button" class="dropdown-item" data-format="csv">
+                        <span class="dropdown-item-icon">📄</span>
+                        <span class="dropdown-item-text">
+                          <strong>CSV (.csv)</strong>
+                          <small>Invoice records</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="xlsx">
+                        <span class="dropdown-item-icon">📊</span>
+                        <span class="dropdown-item-text">
+                          <strong>Excel (.xlsx)</strong>
+                          <small>Formatted workbook</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="svg">
+                        <span class="dropdown-item-icon">🖼️</span>
+                        <span class="dropdown-item-text">
+                          <strong>SVG Card (.svg)</strong>
+                          <small>Vector graphic summary</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="pdf">
+                        <span class="dropdown-item-icon">📑</span>
+                        <span class="dropdown-item-text">
+                          <strong>PDF Document (.pdf)</strong>
+                          <small>Printable report</small>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
+
               <div class="table-responsive">
                 <table class="data-table" id="history-table">
                   <thead>
@@ -401,15 +462,52 @@
               </form>
             </div>
 
-            <div class="search-bar" style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <div class="search-bar" style="margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
               <input
                 type="text"
                 id="search-inventory"
                 placeholder="Search by name, company, variant..."
                 class="form-control"
-                style="flex: 1;"
+                style="flex: 1; min-width: 240px;"
               />
               <button class="btn btn-outline btn-sm" onclick="InventoryManager.showAllHistory()">📋 Full History</button>
+              
+              <!-- Inventory Download Dropdown -->
+              <div class="dropdown" id="inventory-download-dropdown" style="position: relative; display: inline-block;">
+                <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-inventory-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download inventory list">
+                  📥 Download ▾
+                </button>
+                <div class="dropdown-menu" id="inventory-download-menu" style="display: none;">
+                  <button type="button" class="dropdown-item" data-format="csv">
+                    <span class="dropdown-item-icon">📄</span>
+                    <span class="dropdown-item-text">
+                      <strong>CSV (.csv)</strong>
+                      <small>Product inventory data</small>
+                    </span>
+                  </button>
+                  <button type="button" class="dropdown-item" data-format="xlsx">
+                    <span class="dropdown-item-icon">📊</span>
+                    <span class="dropdown-item-text">
+                      <strong>Excel (.xlsx)</strong>
+                      <small>Formatted workbook</small>
+                    </span>
+                  </button>
+                  <button type="button" class="dropdown-item" data-format="svg">
+                    <span class="dropdown-item-icon">🖼️</span>
+                    <span class="dropdown-item-text">
+                      <strong>SVG Card (.svg)</strong>
+                      <small>Vector graphic inventory card</small>
+                    </span>
+                  </button>
+                  <button type="button" class="dropdown-item" data-format="pdf">
+                    <span class="dropdown-item-icon">📑</span>
+                    <span class="dropdown-item-text">
+                      <strong>PDF Document (.pdf)</strong>
+                      <small>Printable inventory sheet</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="inventory-color-legend">
@@ -448,6 +546,208 @@
             </div>
           </div>
         </section>
+
+        <!-- Customers View -->
+        <section id="view-customers" class="view" style="display: none">
+          <header class="view-header no-print">
+            <h1>Customers Directory</h1>
+            <div class="header-actions">
+              <button class="btn btn-primary" id="btn-add-customer">
+                + Add Customer
+              </button>
+            </div>
+          </header>
+
+          <div class="view-body">
+            <!-- Customer Stats Summary Cards -->
+            <div class="stats-grid no-print" style="margin-bottom: 1.5rem;">
+              <div class="stat-card" data-action="show-all-customers" title="Show all customers">
+                <span class="stat-label">👥 Total Customers</span>
+                <span class="stat-value" id="stat-total-customers">0</span>
+              </div>
+              <div class="stat-card" data-action="show-active-buyers" title="Show customers who have bought from you">
+                <span class="stat-label">🛍️ Active Buyers</span>
+                <span class="stat-value" id="stat-active-buyers">0</span>
+              </div>
+              <div class="stat-card" data-action="show-top-buyer" title="View top buyer purchase history">
+                <span class="stat-label">👑 Top Buyer</span>
+                <span class="stat-value" id="stat-top-buyer" style="font-size: 1rem;">None</span>
+              </div>
+            </div>
+
+            <!-- Toolbar: Search & Filters -->
+            <div class="card no-print" style="margin-bottom: 1.25rem; padding: 1.25rem;">
+              <div class="customer-toolbar">
+                <div class="search-box" style="flex: 1; min-width: 260px;">
+                  <input
+                    type="text"
+                    id="customer-search-input"
+                    class="form-control"
+                    placeholder="Search by customer name, phone, email, address..."
+                  />
+                </div>
+                <div class="filter-pills" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                  <button class="btn btn-outline customer-filter-btn active" data-filter="all">All Customers</button>
+                  <button class="btn btn-outline customer-filter-btn part-time-highlight" data-filter="part-time" id="btn-filter-part-time" title="View buyers who purchase products the most">⭐ Part time customer</button>
+                  <button class="btn btn-outline customer-filter-btn" data-filter="email">Has Email</button>
+                  <button class="btn btn-outline customer-filter-btn" data-filter="phone">Has Phone</button>
+                  
+                  <!-- Download Dropdown -->
+                  <div class="dropdown" id="customer-download-dropdown" style="position: relative; display: inline-block;">
+                    <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-customer-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download customer directory">
+                      📥 Download ▾
+                    </button>
+                    <div class="dropdown-menu" id="customer-download-menu" style="display: none;">
+                      <button type="button" class="dropdown-item" data-format="csv">
+                        <span class="dropdown-item-icon">📄</span>
+                        <span class="dropdown-item-text">
+                          <strong>CSV (.csv)</strong>
+                          <small>Comma-separated data</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="xlsx">
+                        <span class="dropdown-item-icon">📊</span>
+                        <span class="dropdown-item-text">
+                          <strong>Excel (.xlsx)</strong>
+                          <small>Formatted workbook</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="svg">
+                        <span class="dropdown-item-icon">🖼️</span>
+                        <span class="dropdown-item-text">
+                          <strong>SVG Card (.svg)</strong>
+                          <small>Vector graphic card</small>
+                        </span>
+                      </button>
+                      <button type="button" class="dropdown-item" data-format="pdf">
+                        <span class="dropdown-item-icon">📑</span>
+                        <span class="dropdown-item-text">
+                          <strong>PDF Document (.pdf)</strong>
+                          <small>Printable document report</small>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Floating / Bulk Action Bar -->
+            <div id="bulk-action-bar" class="bulk-action-bar card no-print" style="display: none; margin-bottom: 1.25rem; padding: 0.75rem 1.25rem; background: var(--card-bg); border: 1px solid var(--accent-glow, #3b82f6); border-radius: 8px;">
+              <div class="bulk-info" style="display: flex; align-items: center; gap: 0.75rem;">
+                <span class="bulk-badge" style="font-weight: 600;"><span id="selected-customers-count">0</span> Selected</span>
+              </div>
+              <div class="bulk-actions-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-left: auto;">
+                <button class="btn btn-secondary btn-sm" id="btn-bulk-copy-emails" title="Copy selected emails to clipboard">
+                  📧 Copy Emails
+                </button>
+                <button class="btn btn-secondary btn-sm" id="btn-bulk-copy-phones" title="Copy selected phone numbers to clipboard">
+                  📞 Copy Phone Numbers
+                </button>
+                <button class="btn btn-secondary btn-sm" id="btn-bulk-copy-addresses" title="Copy selected addresses to clipboard">
+                  📍 Copy Addresses
+                </button>
+                <button class="btn btn-danger btn-sm" id="btn-bulk-delete" title="Delete selected customers">
+                  🗑️ Delete Selected
+                </button>
+              </div>
+            </div>
+
+            <!-- Customers Directory Table -->
+            <div class="card">
+              <div class="table-responsive">
+                <table class="data-table customer-table">
+                  <thead>
+                    <tr>
+                      <th width="4%" style="text-align: center;">
+                        <input type="checkbox" id="select-all-customers" title="Select All Customers" />
+                      </th>
+                      <th width="22%">Customer Name</th>
+                      <th width="20%">Email Address</th>
+                      <th width="16%">Phone Number</th>
+                      <th width="22%">Address</th>
+                      <th width="16%">Total Purchases</th>
+                      <th width="10%" class="no-print" style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="customers-table-body">
+                    <!-- Populated dynamically via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Customer Add/Edit Modal -->
+        <div id="modal-customer" class="modal-overlay" style="display: none;">
+          <div class="modal-card">
+            <div class="modal-header">
+              <h3 id="modal-customer-title">Add New Customer</h3>
+              <button type="button" class="btn btn-sm btn-outline modal-close-btn modal-close">&times;</button>
+            </div>
+            <form id="form-customer">
+              <input type="hidden" id="cust-modal-id" />
+              <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                  <label>Customer Name *</label>
+                  <input type="text" id="cust-modal-name" class="form-control" required placeholder="Enter full name" />
+                </div>
+                <div class="grid-2" style="margin-bottom: 1rem;">
+                  <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" id="cust-modal-phone" class="form-control" placeholder="e.g. +91 9876543210" />
+                  </div>
+                  <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="cust-modal-email" class="form-control" placeholder="e.g. customer@example.com" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Address</label>
+                  <textarea id="cust-modal-address" class="form-control" rows="3" placeholder="Enter complete billing/shipping address"></textarea>
+                </div>
+              </div>
+              <div class="modal-footer" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-outline btn-cancel-modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Customer Purchase History Modal -->
+        <div id="modal-customer-history" class="modal-overlay" style="display: none;">
+          <div class="modal-card" style="max-width: 860px;">
+            <div class="modal-header">
+              <h3 class="modal-title" id="customer-history-title">🧾 Purchase History</h3>
+              <button type="button" class="btn btn-sm btn-outline modal-close-btn modal-history-close" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+              <!-- Customer summary strip -->
+              <div class="customer-history-summary" id="customer-history-summary"></div>
+              <div class="table-responsive">
+                <table class="data-table" id="customer-history-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Invoice #</th>
+                      <th>Items</th>
+                      <th>Total</th>
+                      <th class="no-print" style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="customer-history-body">
+                    <!-- Populated dynamically via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary modal-history-close">Close</button>
+            </div>
+          </div>
+        </div>
 
         <!-- Settings View -->
         <section id="view-settings" class="view" style="display: none">
@@ -662,13 +962,39 @@
               </select>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-clear-history-filter" style="align-self:flex-end;">Clear</button>
-            <div class="download-dropdown" id="download-dropdown" style="align-self:flex-end; position:relative;">
-              <button class="btn btn-outline btn-sm" id="btn-download-dropdown-toggle">📥 Download ▾</button>
-              <div class="download-dropdown-menu" id="btn-download-dropdown-menu" style="display:none;">
-                <button class="download-dropdown-item" id="btn-export-history-xlsx">📊 Export as XLSX</button>
-                <button class="download-dropdown-item" id="btn-export-history-pdf">📄 Export as PDF</button>
-                <button class="download-dropdown-item" id="btn-export-history-svg">📈 Export Chart as SVG</button>
-                <button class="download-dropdown-item" id="btn-export-history-csv">📋 Export as CSV</button>
+            <div class="dropdown" id="history-download-dropdown" style="align-self:flex-end; margin-left:auto; position:relative; display: inline-block;">
+              <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-history-download-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Download stock history">
+                📥 Download ▾
+              </button>
+              <div class="dropdown-menu" id="history-download-menu" style="display:none;">
+                <button type="button" class="dropdown-item" data-format="csv">
+                  <span class="dropdown-item-icon">📄</span>
+                  <span class="dropdown-item-text">
+                    <strong>CSV (.csv)</strong>
+                    <small>History log data</small>
+                  </span>
+                </button>
+                <button type="button" class="dropdown-item" data-format="xlsx">
+                  <span class="dropdown-item-icon">📊</span>
+                  <span class="dropdown-item-text">
+                    <strong>Excel (.xlsx)</strong>
+                    <small>Formatted workbook</small>
+                  </span>
+                </button>
+                <button type="button" class="dropdown-item" data-format="svg">
+                  <span class="dropdown-item-icon">📈</span>
+                  <span class="dropdown-item-text">
+                    <strong>SVG Chart (.svg)</strong>
+                    <small>Vector chart & stats</small>
+                  </span>
+                </button>
+                <button type="button" class="dropdown-item" data-format="pdf">
+                  <span class="dropdown-item-icon">📑</span>
+                  <span class="dropdown-item-text">
+                    <strong>PDF Report (.pdf)</strong>
+                    <small>Printable history report</small>
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -794,6 +1120,7 @@
     <script src="js/stockHistory.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/invoice.js"></script>
+    <script src="js/customers.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/app.js"></script>
   </body>

@@ -11,7 +11,13 @@ const InventoryManager = {
         document.getElementById('stock-history-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
                 e.currentTarget.style.display = 'none';
-                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
+                const hm = document.getElementById('history-download-menu');
+                if (hm) hm.style.display = 'none';
+                const tooltipEl = document.getElementById('chart-instant-tooltip');
+                if (tooltipEl) {
+                    tooltipEl.classList.remove('visible');
+                    tooltipEl.style.display = 'none';
+                }
             }
         });
         // Close low stock modal when clicking outside the card
@@ -33,15 +39,23 @@ const InventoryManager = {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.getElementById('stock-history-modal').style.display = 'none';
-        document.getElementById('low-stock-modal').style.display = 'none';
-        document.getElementById('bulk-restock-confirm-modal').style.display = 'none';
-        document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-        // Clean up restock state
-        document.getElementById('inline-restock-panel').style.display = 'none';
-        document.getElementById('inventory-restock-panel').style.display = 'none';
-        this._restockProductId = null;
-        this._pendingBulkRestock = null;
-        // Clean up bulk restock state
+                document.getElementById('low-stock-modal').style.display = 'none';
+                document.getElementById('bulk-restock-confirm-modal').style.display = 'none';
+                const hm = document.getElementById('history-download-menu');
+                if (hm) hm.style.display = 'none';
+                const im = document.getElementById('inventory-download-menu');
+                if (im) im.style.display = 'none';
+                const tooltipEl = document.getElementById('chart-instant-tooltip');
+                if (tooltipEl) {
+                    tooltipEl.classList.remove('visible');
+                    tooltipEl.style.display = 'none';
+                }
+                // Clean up restock state
+                document.getElementById('inline-restock-panel').style.display = 'none';
+                document.getElementById('inventory-restock-panel').style.display = 'none';
+                this._restockProductId = null;
+                this._pendingBulkRestock = null;
+                // Clean up bulk restock state
                 document.getElementById('bulk-restock-panel').style.display = 'none';
                 this._resetBulkSelection();
             }
@@ -73,50 +87,72 @@ const InventoryManager = {
         dataList.forEach(prod => {
             const tr = document.createElement('tr');
             
-            // Stock logic
-            const isLowStock = prod.stockQty <= prod.lowStockThreshold;
-            // Approaching low stock: above threshold but within 5 units
-            const isApproachingLow = !isLowStock && prod.lowStockThreshold > 0 && prod.stockQty <= prod.lowStockThreshold + 5;
-            const stockBadgeClass = isLowStock ? 'badge badge-danger' : (isApproachingLow ? 'badge badge-warning' : 'badge badge-success');
-            
-            // Add data attributes for tooltip
+            // Add class and data attributes for tooltip
+            tr.classList.add('inventory-table-row');
+            tr.dataset.productId = prod.id;
             tr.dataset.productName = this.escapeHTML(prod.name);
             tr.dataset.productCompany = this.escapeHTML(prod.company || '-');
             tr.dataset.productVariant = this.escapeHTML(prod.sizeUnit || '-');
             tr.dataset.productPrice = Utils.formatCurrency(prod.unitPrice);
             tr.dataset.productStock = prod.stockQty;
-            tr.dataset.productGst = prod.gstPercent || 0;
-            tr.dataset.productDiscount = Utils.formatCurrency(prod.defaultDiscount || 0);
             tr.dataset.productThreshold = prod.lowStockThreshold;
-            tr.classList.add('inventory-row');
-            if (isLowStock) tr.classList.add('inventory-row--low-stock');
-            else if (isApproachingLow) tr.classList.add('inventory-row--approaching-low-stock');
-            else tr.classList.add('inventory-row--enough-stock');
+
+            // Apply stock level border class
+            const isOutOfStock = prod.stockQty <= 0;
+            const isLowStock = prod.stockQty > 0 && prod.stockQty <= prod.lowStockThreshold;
+            const isApproachingLow = !isLowStock && !isOutOfStock && prod.lowStockThreshold > 0 && prod.stockQty <= prod.lowStockThreshold * 1.5;
+            
+            if (isOutOfStock || isLowStock) {
+                tr.classList.add('inventory-row--low-stock');
+            } else if (isApproachingLow) {
+                tr.classList.add('inventory-row--approaching-low-stock');
+            } else {
+                tr.classList.add('inventory-row--enough-stock');
+            }
             
             tr.innerHTML = `
                 <td>
                     <strong>${this.escapeHTML(prod.name)}</strong>
-                    ${isLowStock ? '<span style="color:var(--danger); font-size:0.75rem; display:block;">Low Stock</span>' : ''}
-                    ${isApproachingLow ? '<span style="color:var(--warning); font-size:0.75rem; display:block;">⚠ Approaching Low</span>' : ''}
                 </td>
                 <td>${this.escapeHTML(prod.company || '-')}</td>
                 <td>${this.escapeHTML(prod.sizeUnit || '-')}</td>
                 <td>${Utils.formatCurrency(prod.unitPrice)}</td>
-                <td><span class="${stockBadgeClass}">${prod.stockQty}</span></td>
-                <td>${prod.lastSoldDate ? Utils.formatDate(prod.lastSoldDate) : '<span class="text-muted">Never</span>'}</td>
+                <td>${prod.stockQty}</td>
+                <td>${prod.lastSoldDate ? Utils.formatDate(prod.lastSoldDate) : 'Never'}</td>
                 <td>
-                    <button class="btn btn-outline btn-sm" onclick="InventoryManager.editProduct('${prod.id}')">Edit</button>
-                    <button class="btn btn-outline btn-sm" onclick="InventoryManager.showHistory('${prod.id}')">📋</button>
-                    <button class="btn btn-secondary btn-sm" onclick="InventoryManager.showInventoryRestock('${prod.id}')">+ Restock</button>
-                    <button class="btn btn-danger btn-sm" onclick="InventoryManager.deleteProduct('${prod.id}')">Del</button>
+                    <button class="btn btn-outline btn-sm btn-edit-product" data-id="${prod.id}">Edit</button>
+                    <button class="btn btn-outline btn-sm btn-history-product" data-id="${prod.id}">History</button>
+                    <button class="btn btn-danger btn-sm btn-delete-product" data-id="${prod.id}">Delete</button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
+
+        // Event delegation for action buttons (replaces inline onclicks)
+        if (!this._tableEventsBound) {
+            tbody.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.btn-edit-product');
+                if (editBtn) {
+                    this.editProduct(editBtn.dataset.id);
+                    return;
+                }
+                const histBtn = e.target.closest('.btn-history-product');
+                if (histBtn) {
+                    this.showHistory(histBtn.dataset.id);
+                    return;
+                }
+                const delBtn = e.target.closest('.btn-delete-product');
+                if (delBtn) {
+                    this.deleteProduct(delBtn.dataset.id);
+                    return;
+                }
+            });
+            this._tableEventsBound = true;
+        }
     },
 
     bindEvents() {
-        // Toggle Form
+        // Toggle Product form
         document.getElementById('btn-add-product').addEventListener('click', () => {
             document.getElementById('form-product').reset();
             document.getElementById('prod-id').value = '';
@@ -128,16 +164,45 @@ const InventoryManager = {
             document.getElementById('product-editor').style.display = 'none';
         });
 
-        // Search functionality
+        // Search Inventory
         document.getElementById('search-inventory').addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            const filtered = this.products.filter(p => 
-                p.name.toLowerCase().includes(term) ||
-                (p.company && p.company.toLowerCase().includes(term)) ||
-                (p.sizeUnit && p.sizeUnit.toLowerCase().includes(term))
+            const query = e.target.value.toLowerCase().trim();
+            this._filteredProducts = this.products.filter(p => 
+                p.name.toLowerCase().includes(query) ||
+                (p.company && p.company.toLowerCase().includes(query)) ||
+                (p.sizeUnit && p.sizeUnit.toLowerCase().includes(query))
             );
-            this.renderTable(filtered);
+            this.renderTable(this._filteredProducts);
         });
+
+        // Inventory Products Download Dropdown Toggle
+        const invProdToggle = document.getElementById('btn-inventory-download-toggle');
+        const invProdMenu = document.getElementById('inventory-download-menu');
+        if (invProdToggle && invProdMenu) {
+            invProdToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = invProdMenu.style.display === 'flex';
+                invProdMenu.style.display = isOpen ? 'none' : 'flex';
+                invProdToggle.setAttribute('aria-expanded', !isOpen);
+            });
+
+            invProdMenu.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const format = item.getAttribute('data-format');
+                    invProdMenu.style.display = 'none';
+                    invProdToggle.setAttribute('aria-expanded', 'false');
+                    this.handleProductsDownload(format);
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#inventory-download-dropdown')) {
+                    invProdMenu.style.display = 'none';
+                    invProdToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
 
         // Form Submit
         document.getElementById('form-product').addEventListener('submit', async (e) => {
@@ -161,37 +226,55 @@ const InventoryManager = {
             document.getElementById('filter-history-type').value = '';
             this._applyHistoryFilter();
         });
-        // Download dropdown toggle
-        document.getElementById('btn-download-dropdown-toggle').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const menu = document.getElementById('btn-download-dropdown-menu');
-            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-        });
 
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#download-dropdown')) {
-                document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-            }
-        });
+        // Stock History Download dropdown toggle and items (same pattern as Customers/Inventory)
+        const histToggle = document.getElementById('btn-history-download-toggle');
+        const histMenu = document.getElementById('history-download-menu');
+        if (histToggle && histMenu) {
+            histToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = histMenu.style.display === 'flex';
+                histMenu.style.display = isOpen ? 'none' : 'flex';
+                histToggle.setAttribute('aria-expanded', !isOpen);
+            });
 
-        // Export buttons
-        document.getElementById('btn-export-history-csv').addEventListener('click', () => {
-            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-            this._exportHistoryCSV();
-        });
-        document.getElementById('btn-export-history-xlsx').addEventListener('click', () => {
-            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-            this._exportHistoryXLSX();
-        });
-        document.getElementById('btn-export-history-pdf').addEventListener('click', () => {
-            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-            this._exportHistoryPDF();
-        });
-        document.getElementById('btn-export-history-svg').addEventListener('click', () => {
-            document.getElementById('btn-download-dropdown-menu').style.display = 'none';
-            this._exportHistorySVG();
-        });
+            histMenu.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const format = item.getAttribute('data-format');
+                    histMenu.style.display = 'none';
+                    histToggle.setAttribute('aria-expanded', 'false');
+                    this.handleHistoryDownload(format);
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#history-download-dropdown')) {
+                    histMenu.style.display = 'none';
+                    histToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+    },
+
+    handleHistoryDownload(format) {
+        switch (format) {
+            case 'csv':
+                this._exportHistoryCSV();
+                break;
+            case 'xlsx':
+                this._exportHistoryXLSX();
+                break;
+            case 'svg':
+                this._exportHistorySVG();
+                break;
+            case 'pdf':
+                this._exportHistoryPDF();
+                break;
+            default:
+                this._exportHistoryCSV();
+                break;
+        }
     },
 
     async saveProduct() {
@@ -941,6 +1024,7 @@ const InventoryManager = {
             if (modal.style.display === 'none' || !modal.style.display) {
                 document.getElementById('filter-history-from').value = '';
                 document.getElementById('filter-history-to').value = '';
+                document.getElementById('filter-history-type').value = '';
             }
 
             // Apply the current filter (or show all if filters are empty)
@@ -1059,6 +1143,64 @@ const InventoryManager = {
         }
 
         container.innerHTML = html;
+
+        // Bind instant custom tooltip on candles
+        const candles = container.querySelectorAll('.chart-candle-group');
+        let tooltipEl = document.getElementById('chart-instant-tooltip');
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.id = 'chart-instant-tooltip';
+            tooltipEl.className = 'chart-custom-tooltip';
+            document.body.appendChild(tooltipEl);
+        }
+
+        candles.forEach(candle => {
+            // Find the <title> child and extract its text to use for custom rendering
+            const titleEl = candle.querySelector('title');
+            let tooltipContent = '';
+            if (titleEl) {
+                tooltipContent = titleEl.textContent;
+                titleEl.remove(); // Prevent standard browser tooltips from appearing
+            }
+
+            candle.addEventListener('mouseenter', (e) => {
+                tooltipEl.innerHTML = tooltipContent.replace(/\n/g, '<br>');
+                tooltipEl.style.display = 'flex';
+                // Trigger layout reflow for animation transition
+                tooltipEl.offsetHeight;
+                tooltipEl.classList.add('visible');
+            });
+
+            candle.addEventListener('mousemove', (e) => {
+                const xOffset = 15;
+                const yOffset = 15;
+                let x = e.clientX + xOffset;
+                let y = e.clientY + yOffset;
+
+                // Keep tooltip inside screen boundary
+                const tooltipWidth = tooltipEl.offsetWidth;
+                const tooltipHeight = tooltipEl.offsetHeight;
+                if (x + tooltipWidth > window.innerWidth) {
+                    x = e.clientX - tooltipWidth - xOffset;
+                }
+                if (y + tooltipHeight > window.innerHeight) {
+                    y = e.clientY - tooltipHeight - yOffset;
+                }
+
+                tooltipEl.style.left = `${x}px`;
+                tooltipEl.style.top = `${y}px`;
+            });
+
+            candle.addEventListener('mouseleave', () => {
+                tooltipEl.classList.remove('visible');
+                // Hide after transition
+                setTimeout(() => {
+                    if (!tooltipEl.classList.contains('visible')) {
+                        tooltipEl.style.display = 'none';
+                    }
+                }, 80);
+            });
+        });
     },
 
     _renderStockChart(entries, showProduct) {
@@ -1137,8 +1279,9 @@ const InventoryManager = {
         const count = chartEntries.length;
         if (count === 0) return '';
 
-        const W = 620, H = 190;
-        const PAD = { top: 24, right: 15, bottom: 32, left: 40 };
+        const W = 620, H = 210;
+        // Extra bottom padding to hold: date label + separator + value number
+        const PAD = { top: 24, right: 15, bottom: 56, left: 40 };
         const cw = W - PAD.left - PAD.right;
         const ch = H - PAD.top - PAD.bottom;
 
@@ -1149,6 +1292,16 @@ const InventoryManager = {
 
         const groupWidth = cw / count;
         const barWidth = Math.min(32, Math.max(18, groupWidth * 0.75));
+
+        // Vertical zones below the chart area:
+        //   barBottom = PAD.top + ch  (base line of bars)
+        //   sepY      = barBottom + 6  (thin separator line)
+        //   valY      = sepY + 14      (value label, e.g. "+3")
+        //   dateY     = H - 6          (date label at very bottom)
+        const barBottom = PAD.top + ch;
+        const sepY   = barBottom + 8;
+        const valY   = sepY + 14;
+        const dateY  = H - 6;
 
         let barsHtml = '';
         chartEntries.forEach((e, i) => {
@@ -1168,23 +1321,51 @@ const InventoryManager = {
                 prodName = prodName.slice(0, 14) + '…';
             }
 
-            const tooltipText = `${this.escapeHTML(e.productName || 'Product')}\nType: ${isSold ? 'Sold' : 'Restocked'} (${e.change > 0 ? '+' : ''}${e.change})\nDate: ${Utils.formatDate(e.date)}${e.invoiceNumber ? '\nInvoice: ' + this.escapeHTML(e.invoiceNumber) : ''}`;
+            // Look up extra product info (company, variant/size) from the products list
+            const prodRecord = (this.products || []).find(p => p.id === e.productId);
+            const company   = prodRecord && prodRecord.company  ? prodRecord.company  : null;
+            const sizeUnit  = prodRecord && prodRecord.sizeUnit ? prodRecord.sizeUnit : null;
+
+            const tooltipLines = [
+                `📦 ${e.productName || 'Product'}`,
+                company  ? `🏭 Company: ${company}`  : null,
+                sizeUnit ? `📐 Size / Variant: ${sizeUnit}` : null,
+                `─────────────────`,
+                `${isSold ? '🔻 Sold' : '🔺 Restocked'}: ${e.change > 0 ? '+' : ''}${e.change} units`,
+                `📅 Date: ${Utils.formatDate(e.date)}`,
+                e.invoiceNumber ? `🧾 Invoice: ${e.invoiceNumber}` : null
+            ].filter(Boolean);
+
+            const tooltipText = tooltipLines
+                .map(l => this.escapeHTML ? this.escapeHTML(l) : l)
+                .join('\n');
+
+            const valueSign = e.change > 0 ? '+' : '';
+            const valueFill = isSold ? 'var(--danger, #f87171)' : 'var(--secondary, #34d399)';
+
 
             barsHtml += `
                 <g class="chart-candle-group" style="cursor:pointer;">
                     <title>${tooltipText}</title>
+                    <!-- Candle bar -->
                     <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="3" class="${barClass}"/>
-                    <text x="${centerX}" y="${centerY}" 
-                          text-anchor="middle" 
-                          dominant-baseline="central" 
-                          transform="rotate(-90, ${centerX}, ${centerY})" 
+                    <!-- Product name rotated inside bar, starting from bar bottom -->
+                    <text x="${centerX}" y="${y + barH - 5}" 
+                          text-anchor="start" 
+                          dominant-baseline="middle" 
+                          transform="rotate(-90, ${centerX}, ${y + barH - 5})" 
                           class="chart-candle-label">
                         ${this.escapeHTML(prodName)}
                     </text>
-                    <text x="${centerX}" y="${Math.max(12, y - 4)}" text-anchor="middle" class="chart-val-label">
-                        ${e.change > 0 ? '+' : ''}${e.change}
+                    <!-- Separator line between bar base and value -->
+                    <line x1="${centerX - barWidth * 0.45}" y1="${sepY}" x2="${centerX + barWidth * 0.45}" y2="${sepY}"
+                          stroke="${valueFill}" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    <!-- Value number below separator -->
+                    <text x="${centerX}" y="${valY}" text-anchor="middle" class="chart-val-label" fill="${valueFill}">
+                        ${valueSign}${e.change}
                     </text>
-                    <text x="${centerX}" y="${H - 6}" text-anchor="middle" class="chart-x-label">
+                    <!-- Date label at very bottom -->
+                    <text x="${centerX}" y="${dateY}" text-anchor="middle" class="chart-x-label">
                         ${Utils.formatDate(e.date).slice(0, 6)}
                     </text>
                 </g>
@@ -1208,6 +1389,7 @@ const InventoryManager = {
             </svg>
         </div>`;
     },
+
 
     _goToPage(page) {
         if (page < 1) return;
@@ -1484,6 +1666,355 @@ const InventoryManager = {
         Utils.showToast('Chart exported as SVG', 'success');
     },
 
+    getFilteredProducts() {
+        return this._filteredProducts || this.products;
+    },
+
+    handleProductsDownload(format) {
+        switch (format) {
+            case 'csv':
+                this.exportProductsCSV();
+                break;
+            case 'xlsx':
+                this.exportProductsXLSX();
+                break;
+            case 'svg':
+                this.exportProductsSVG();
+                break;
+            case 'pdf':
+                this.exportProductsPDF();
+                break;
+            default:
+                this.exportProductsCSV();
+                break;
+        }
+    },
+
+    exportProductsCSV() {
+        const list = this.getFilteredProducts();
+        if (!list || list.length === 0) {
+            Utils.showToast('No products to export.', 'warning');
+            return;
+        }
+
+        const escapeCell = (value) => {
+            const s = value === null || value === undefined ? '' : String(value);
+            return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+
+        const headers = ['Product Name', 'Company', 'Variant', 'Unit Price (INR)', 'GST %', 'Discount (INR)', 'Current Stock', 'Low Stock Threshold', 'Last Sold Date'];
+        const rows = list.map(p => [
+            p.name || '',
+            p.company || '',
+            p.sizeUnit || '',
+            (p.unitPrice || 0).toFixed(2),
+            (p.gstPercent || 0).toFixed(1),
+            (p.defaultDiscount || 0).toFixed(2),
+            p.stockQty || 0,
+            p.lowStockThreshold || 0,
+            p.lastSoldDate ? Utils.formatDate(p.lastSoldDate) : 'Never'
+        ].map(escapeCell).join(','));
+
+        const csv = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inventory_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} product(s) to CSV.`, 'success');
+    },
+
+    exportProductsXLSX() {
+        const list = this.getFilteredProducts();
+        if (!list || list.length === 0) {
+            Utils.showToast('No products to export.', 'warning');
+            return;
+        }
+
+        const escapeXml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
+        let xmlRows = '';
+        list.forEach(p => {
+            xmlRows += `
+    <Row ss:Height="20">
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(p.name || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(p.company || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(p.sizeUnit || '')}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${(p.unitPrice || 0).toFixed(2)}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${p.stockQty || 0}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${p.lowStockThreshold || 0}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(p.lastSoldDate ? Utils.formatDate(p.lastSoldDate) : 'Never')}</Data></Cell>
+    </Row>`;
+        });
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>Product Inventory</Title>
+  <Created>${new Date().toISOString()}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Segoe UI" ss:Size="11"/>
+   <Interior ss:Color="#0EA5E9" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#0284C7"/></Borders>
+  </Style>
+  <Style ss:ID="Data">
+   <Font ss:Color="#1E293B" ss:FontName="Segoe UI" ss:Size="10"/>
+   <Alignment ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders>
+  </Style>
+  <Style ss:ID="DataNumber">
+   <Font ss:Color="#1E293B" ss:FontName="Segoe UI" ss:Size="10"/>
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Products">
+  <Table>
+   <Column ss:Width="160"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="120"/>
+   <Row ss:StyleID="Header" ss:Height="24">
+    <Cell><Data ss:Type="String">Product Name</Data></Cell>
+    <Cell><Data ss:Type="String">Company</Data></Cell>
+    <Cell><Data ss:Type="String">Variant</Data></Cell>
+    <Cell><Data ss:Type="String">Price (INR)</Data></Cell>
+    <Cell><Data ss:Type="String">Stock</Data></Cell>
+    <Cell><Data ss:Type="String">Threshold</Data></Cell>
+    <Cell><Data ss:Type="String">Last Sold</Data></Cell>
+   </Row>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inventory_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} product(s) to Excel (.xlsx).`, 'success');
+    },
+
+    exportProductsSVG() {
+        const list = this.getFilteredProducts();
+        if (!list || list.length === 0) {
+            Utils.showToast('No products to export.', 'warning');
+            return;
+        }
+
+        const escapeXml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
+        const rowHeight = 42;
+        const headerHeight = 140;
+        const tableHeaderHeight = 40;
+        const footerHeight = 40;
+        const totalHeight = headerHeight + tableHeaderHeight + (list.length * rowHeight) + footerHeight;
+        const width = 1000;
+
+        let rowsSvg = '';
+        list.forEach((p, idx) => {
+            const y = headerHeight + tableHeaderHeight + (idx * rowHeight);
+            const bg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
+            const isLow = p.stockQty <= p.lowStockThreshold;
+            
+            rowsSvg += `
+        <rect x="20" y="${y}" width="${width - 40}" height="${rowHeight}" fill="${bg}" rx="4"/>
+        <text x="40" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#f8fafc">${escapeXml(p.name || '—')}</text>
+        <text x="300" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8">${escapeXml(p.company || '—')}</text>
+        <text x="480" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8">${escapeXml(p.sizeUnit || '—')}</text>
+        <text x="680" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#38bdf8" text-anchor="end">${escapeXml(Utils.formatCurrency(p.unitPrice || 0))}</text>
+        <text x="820" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="${isLow ? '#f87171' : '#34d399'}" text-anchor="middle">${p.stockQty || 0} (${p.lowStockThreshold || 0})</text>
+        <text x="940" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8" text-anchor="end">${escapeXml(p.lastSoldDate ? Utils.formatDate(p.lastSoldDate) : 'Never')}</text>`;
+        });
+
+        const totalStock = list.reduce((sum, p) => sum + (p.stockQty || 0), 0);
+        const lowStockCount = list.filter(p => p.stockQty <= p.lowStockThreshold).length;
+
+        const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${totalHeight}" width="${width}" height="${totalHeight}">
+  <defs>
+    <linearGradient id="invGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="${width}" height="${totalHeight}" fill="#0b1120"/>
+
+  <!-- Header Banner -->
+  <rect x="20" y="20" width="${width - 40}" height="100" rx="12" fill="url(#invGrad2)"/>
+  <text x="50" y="60" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#ffffff">📦 Ease Invoice — Inventory Database</text>
+  <text x="50" y="90" font-family="Inter, -apple-system, sans-serif" font-size="13" fill="#cbd5e1">Generated on ${Utils.formatDate(new Date().toISOString())} • ${list.length} Products • ${totalStock} Total Units • ${lowStockCount} Low Stock</text>
+
+  <!-- Table Header -->
+  <rect x="20" y="${headerHeight}" width="${width - 40}" height="${tableHeaderHeight}" fill="#1e293b" rx="6"/>
+  <text x="40" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">PRODUCT</text>
+  <text x="300" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">COMPANY</text>
+  <text x="480" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">VARIANT</text>
+  <text x="680" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="end">PRICE</text>
+  <text x="820" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="middle">STOCK (MIN)</text>
+  <text x="940" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="end">LAST SOLD</text>
+
+  <!-- Data Rows -->
+  ${rowsSvg}
+
+  <!-- Footer -->
+  <text x="${width / 2}" y="${totalHeight - 15}" font-family="Inter, -apple-system, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Ease Invoice Pro • Product Inventory Report</text>
+</svg>`;
+
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inventory_${new Date().toISOString().split('T')[0]}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} product(s) to SVG.`, 'success');
+    },
+
+    exportProductsPDF() {
+        const list = this.getFilteredProducts();
+        if (!list || list.length === 0) {
+            Utils.showToast('No products to export.', 'warning');
+            return;
+        }
+
+        const printWin = window.open('', '_blank', 'width=900,height=700');
+        if (!printWin) {
+            Utils.showToast('Popup blocked. Please allow popups to download PDF.', 'warning');
+            return;
+        }
+
+        const totalStock = list.reduce((sum, p) => sum + (p.stockQty || 0), 0);
+        const lowStockCount = list.filter(p => p.stockQty <= p.lowStockThreshold).length;
+
+        let rowsHtml = '';
+        list.forEach(p => {
+            const isLow = p.stockQty <= p.lowStockThreshold;
+            rowsHtml += `
+        <tr>
+            <td><strong>${this.escapeHTML(p.name || '—')}</strong></td>
+            <td>${this.escapeHTML(p.company || '—')}</td>
+            <td>${this.escapeHTML(p.sizeUnit || '—')}</td>
+            <td style="text-align:right;">${Utils.formatCurrency(p.unitPrice || 0)}</td>
+            <td style="text-align:center;">${isLow ? '<strong style="color:#ef4444;">' : ''}${p.stockQty || 0} / ${p.lowStockThreshold || 0}${isLow ? '</strong>' : ''}</td>
+            <td>${p.lastSoldDate ? Utils.formatDate(p.lastSoldDate) : 'Never'}</td>
+        </tr>`;
+        });
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Product Inventory - Ease Invoice</title>
+    <style>
+        @page { size: A4 portrait; margin: 1.2cm; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; margin: 0; padding: 20px; font-size: 12px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0ea5e9; padding-bottom: 12px; margin-bottom: 16px; }
+        .title { font-size: 20px; font-weight: bold; color: #0f172a; margin: 0 0 4px 0; }
+        .subtitle { font-size: 11px; color: #64748b; margin: 0; }
+        .stats { display: flex; gap: 20px; margin-bottom: 16px; background: #f8fafc; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+        .stat-val { font-size: 13px; font-weight: bold; color: #0ea5e9; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+        th { background: #0ea5e9; color: white; text-align: left; padding: 8px; font-size: 10px; text-transform: uppercase; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .footer { margin-top: 24px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+        @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1 class="title">Ease Invoice — Product Inventory</h1>
+            <p class="subtitle">Generated on ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+    </div>
+    <div class="stats">
+        <div class="stat-item"><span class="stat-label">Total Products</span><span class="stat-val">${list.length}</span></div>
+        <div class="stat-item"><span class="stat-label">Total Units</span><span class="stat-val">${totalStock}</span></div>
+        <div class="stat-item"><span class="stat-label">Low Stock</span><span class="stat-val">${lowStockCount}</span></div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 26%;">Product</th>
+                <th style="width: 20%;">Company</th>
+                <th style="width: 14%;">Variant</th>
+                <th style="width: 14%; text-align:right;">Price</th>
+                <th style="width: 14%; text-align:center;">Stock / Min</th>
+                <th style="width: 12%;">Last Sold</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rowsHtml}
+        </tbody>
+    </table>
+    <div class="footer">
+        Generated by Ease Invoice Pro • Free &amp; Client-side Invoicing
+    </div>
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+</body>
+</html>`;
+
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+
+        Utils.showToast(`Prepared PDF document with ${list.length} product(s).`, 'success');
+    },
+
     _csvEscape(str) {
         if (!str) return '';
         const s = String(str);
@@ -1507,3 +2038,4 @@ const InventoryManager = {
 };
 
 window.InventoryManager = InventoryManager;
+

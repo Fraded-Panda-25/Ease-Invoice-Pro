@@ -151,6 +151,7 @@ const ProfileManager = {
                         await window.appDB.clear('products');
                         await window.appDB.clear('invoices');
                         await window.appDB.clear('stockHistory');
+                        await window.appDB.clear('customers');
                         Utils.showToast("All data cleared. Reloading...");
                         setTimeout(() => window.location.reload(), 1500);
                     } catch (e) {

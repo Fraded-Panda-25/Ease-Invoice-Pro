@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.ProfileManager) await window.ProfileManager.init();
         if (window.InventoryManager) await window.InventoryManager.init();
         if (window.InvoiceManager) await window.InvoiceManager.init();
+        if (window.CustomersManager) await window.CustomersManager.init();
 
         // Setup Routing (Navigation)
         setupNavigation();
@@ -76,6 +77,8 @@ function setupNavigation() {
                 } else if (targetId === 'view-dashboard' && window.InvoiceManager) {
                     window.InvoiceManager.loadHistory();
                     window.InvoiceManager.renderDashboardStats();
+                } else if (targetId === 'view-customers' && window.CustomersManager) {
+                    window.CustomersManager.loadCustomers();
                 }
             }
             

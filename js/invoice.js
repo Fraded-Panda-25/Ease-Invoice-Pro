@@ -166,12 +166,48 @@ const InvoiceManager = {
         const searchHistory = document.getElementById('search-history');
         if (searchHistory) {
             searchHistory.addEventListener('input', (e) => {
-                const val = e.target.value.toLowerCase();
-                const filtered = this.invoices.filter(inv => 
+                const val = e.target.value.toLowerCase().trim();
+                this._filteredInvoices = this.invoices.filter(inv => 
                     inv.number.toLowerCase().includes(val) || 
-                    inv.customer.name.toLowerCase().includes(val)
+                    (inv.customer && inv.customer.name && inv.customer.name.toLowerCase().includes(val))
                 );
-                this.renderHistory(filtered);
+                this.renderHistory(this._filteredInvoices);
+            });
+        }
+
+        // Invoices Download Dropdown Toggle and Items
+        const invDownloadToggle = document.getElementById('btn-invoices-download-toggle');
+        const invDownloadMenu = document.getElementById('invoices-download-menu');
+        if (invDownloadToggle && invDownloadMenu) {
+            invDownloadToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = invDownloadMenu.style.display === 'flex';
+                invDownloadMenu.style.display = isOpen ? 'none' : 'flex';
+                invDownloadToggle.setAttribute('aria-expanded', !isOpen);
+            });
+
+            invDownloadMenu.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const format = item.getAttribute('data-format');
+                    invDownloadMenu.style.display = 'none';
+                    invDownloadToggle.setAttribute('aria-expanded', 'false');
+                    this.handleDownload(format);
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#invoices-download-dropdown')) {
+                    invDownloadMenu.style.display = 'none';
+                    invDownloadToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && invDownloadMenu.style.display === 'flex') {
+                    invDownloadMenu.style.display = 'none';
+                    invDownloadToggle.setAttribute('aria-expanded', 'false');
+                }
             });
         }
     },
@@ -804,6 +840,40 @@ const InvoiceManager = {
 
             // Save Invoice
             await window.appDB.put('invoices', invoiceRecord);
+
+            // Auto-sync customer details to customers store
+            // (customer name is already validated non-empty above, so the record always has a valid name)
+            try {
+                const existingCusts = await window.appDB.getAll('customers');
+                const match = existingCusts.find(c => 
+                    c.name.trim().toLowerCase() === invoiceRecord.customer.name.trim().toLowerCase() ||
+                    (c.phone && invoiceRecord.customer.phone && c.phone.trim() === invoiceRecord.customer.phone.trim())
+                );
+
+                if (match) {
+                    match.phone = invoiceRecord.customer.phone ? invoiceRecord.customer.phone.trim() : match.phone;
+                    match.email = invoiceRecord.customer.email ? invoiceRecord.customer.email.trim() : match.email;
+                    match.address = invoiceRecord.customer.address ? invoiceRecord.customer.address.trim() : match.address;
+                    match.updatedAt = new Date().toISOString();
+                    await window.appDB.put('customers', match);
+                } else {
+                    const newCust = {
+                        id: Utils.generateUUID(),
+                        name: invoiceRecord.customer.name.trim(),
+                        phone: invoiceRecord.customer.phone ? invoiceRecord.customer.phone.trim() : '',
+                        email: invoiceRecord.customer.email ? invoiceRecord.customer.email.trim() : '',
+                        address: invoiceRecord.customer.address ? invoiceRecord.customer.address.trim() : '',
+                        createdAt: invoiceRecord.date || new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    await window.appDB.put('customers', newCust);
+                }
+                if (window.CustomersManager) {
+                    window.CustomersManager.loadCustomers();
+                }
+            } catch (custErr) {
+                console.error("Auto customer sync failed:", custErr);
+            }
             
             // --- Step 3: Deduct Stock for linked products, update last sold date & check low stock ---
             const lowStockItems = [];
@@ -1327,6 +1397,367 @@ const InvoiceManager = {
         // Legacy fallback
     },
 
+    getFilteredInvoices() {
+        return this._filteredInvoices || this.invoices;
+    },
+
+    handleDownload(format) {
+        switch (format) {
+            case 'csv':
+                this.exportInvoicesCSV();
+                break;
+            case 'xlsx':
+                this.exportInvoicesXLSX();
+                break;
+            case 'svg':
+                this.exportInvoicesSVG();
+                break;
+            case 'pdf':
+                this.exportInvoicesPDF();
+                break;
+            default:
+                this.exportInvoicesCSV();
+                break;
+        }
+    },
+
+    exportInvoicesCSV() {
+        const list = this.getFilteredInvoices();
+        if (!list || list.length === 0) {
+            Utils.showToast('No invoices to export.', 'warning');
+            return;
+        }
+
+        const escapeCell = (value) => {
+            const s = value === null || value === undefined ? '' : String(value);
+            return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+
+        const headers = ['Date', 'Invoice #', 'Customer Name', 'Phone', 'Email', 'Items Count', 'Subtotal (INR)', 'GST Amount (INR)', 'Discount (INR)', 'Grand Total (INR)'];
+        const rows = list.map(inv => {
+            const cust = inv.customer || {};
+            const itemsCount = inv.items ? inv.items.length : 0;
+            const subtotal = inv.items ? inv.items.reduce((s, i) => s + ((i.price || 0) * (i.qty || 0)), 0) : 0;
+            const gstAmount = inv.items ? inv.items.reduce((s, i) => s + (((i.price || 0) * (i.qty || 0)) * ((i.gstPercent || 0) / 100)), 0) : 0;
+            return [
+                inv.date || '',
+                inv.number || '',
+                cust.name || '',
+                cust.phone || '',
+                cust.email || '',
+                itemsCount,
+                subtotal.toFixed(2),
+                gstAmount.toFixed(2),
+                (inv.invDiscount || 0).toFixed(2),
+                (inv.grandTotal || 0).toFixed(2)
+            ].map(escapeCell).join(',');
+        });
+
+        const csv = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} invoice(s) to CSV.`, 'success');
+    },
+
+    exportInvoicesXLSX() {
+        const list = this.getFilteredInvoices();
+        if (!list || list.length === 0) {
+            Utils.showToast('No invoices to export.', 'warning');
+            return;
+        }
+
+        const escapeXml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
+        let xmlRows = '';
+        list.forEach(inv => {
+            const cust = inv.customer || {};
+            const itemsCount = inv.items ? inv.items.length : 0;
+            xmlRows += `
+    <Row ss:Height="20">
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(inv.date || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(inv.number || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(cust.name || '')}</Data></Cell>
+      <Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(cust.phone || '')}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${itemsCount}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${(inv.invDiscount || 0).toFixed(2)}</Data></Cell>
+      <Cell ss:StyleID="DataNumber"><Data ss:Type="Number">${(inv.grandTotal || 0).toFixed(2)}</Data></Cell>
+    </Row>`;
+        });
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>Recent Invoices</Title>
+  <Created>${new Date().toISOString()}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="Segoe UI" ss:Size="11"/>
+   <Interior ss:Color="#0EA5E9" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#0284C7"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="Data">
+   <Font ss:Color="#1E293B" ss:FontName="Segoe UI" ss:Size="10"/>
+   <Alignment ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="DataNumber">
+   <Font ss:Color="#1E293B" ss:FontName="Segoe UI" ss:Size="10"/>
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Invoices">
+  <Table>
+   <Column ss:Width="100"/>
+   <Column ss:Width="160"/>
+   <Column ss:Width="160"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="130"/>
+   <Row ss:StyleID="Header" ss:Height="24">
+    <Cell><Data ss:Type="String">Date</Data></Cell>
+    <Cell><Data ss:Type="String">Invoice #</Data></Cell>
+    <Cell><Data ss:Type="String">Customer Name</Data></Cell>
+    <Cell><Data ss:Type="String">Phone</Data></Cell>
+    <Cell><Data ss:Type="String">Items</Data></Cell>
+    <Cell><Data ss:Type="String">Discount (INR)</Data></Cell>
+    <Cell><Data ss:Type="String">Grand Total (INR)</Data></Cell>
+   </Row>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoices_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} invoice(s) to Excel (.xlsx).`, 'success');
+    },
+
+    exportInvoicesSVG() {
+        const list = this.getFilteredInvoices();
+        if (!list || list.length === 0) {
+            Utils.showToast('No invoices to export.', 'warning');
+            return;
+        }
+
+        const escapeXml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
+        const rowHeight = 42;
+        const headerHeight = 140;
+        const tableHeaderHeight = 40;
+        const footerHeight = 40;
+        const totalHeight = headerHeight + tableHeaderHeight + (list.length * rowHeight) + footerHeight;
+        const width = 1000;
+
+        let rowsSvg = '';
+        list.forEach((inv, idx) => {
+            const y = headerHeight + tableHeaderHeight + (idx * rowHeight);
+            const bg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
+            const custName = inv.customer ? inv.customer.name : '—';
+            const itemsCount = inv.items ? inv.items.length : 0;
+            
+            rowsSvg += `
+        <rect x="20" y="${y}" width="${width - 40}" height="${rowHeight}" fill="${bg}" rx="4"/>
+        <text x="40" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8">${escapeXml(Utils.formatDate(inv.date))}</text>
+        <text x="180" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#38bdf8">${escapeXml(inv.number || '—')}</text>
+        <text x="400" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#f8fafc">${escapeXml(custName)}</text>
+        <text x="680" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">${itemsCount} item${itemsCount !== 1 ? 's' : ''}</text>
+        <text x="940" y="${y + 25}" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#34d399" text-anchor="end">${escapeXml(Utils.formatCurrency(inv.grandTotal || 0))}</text>`;
+        });
+
+        const totalRevenue = list.reduce((sum, i) => sum + (parseFloat(i.grandTotal) || 0), 0);
+
+        const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${totalHeight}" width="${width}" height="${totalHeight}">
+  <defs>
+    <linearGradient id="invGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="${width}" height="${totalHeight}" fill="#0b1120"/>
+
+  <!-- Header Banner -->
+  <rect x="20" y="20" width="${width - 40}" height="100" rx="12" fill="url(#invGrad)"/>
+  <text x="50" y="60" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#ffffff">🧾 Ease Invoice — Recent Invoices Summary</text>
+  <text x="50" y="90" font-family="Inter, -apple-system, sans-serif" font-size="13" fill="#cbd5e1">Generated on ${Utils.formatDate(new Date().toISOString())} • ${list.length} Invoices • Total Revenue: ${escapeXml(Utils.formatCurrency(totalRevenue))}</text>
+
+  <!-- Table Header -->
+  <rect x="20" y="${headerHeight}" width="${width - 40}" height="${tableHeaderHeight}" fill="#1e293b" rx="6"/>
+  <text x="40" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">DATE</text>
+  <text x="180" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">INVOICE #</text>
+  <text x="400" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">CUSTOMER</text>
+  <text x="680" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="middle">ITEMS</text>
+  <text x="940" y="${headerHeight + 25}" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1" text-anchor="end">TOTAL AMOUNT</text>
+
+  <!-- Data Rows -->
+  ${rowsSvg}
+
+  <!-- Footer -->
+  <text x="${width / 2}" y="${totalHeight - 15}" font-family="Inter, -apple-system, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Ease Invoice Pro • Invoice Records Summary</text>
+</svg>`;
+
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoices_${new Date().toISOString().split('T')[0]}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`Exported ${list.length} invoice(s) to SVG.`, 'success');
+    },
+
+    exportInvoicesPDF() {
+        const list = this.getFilteredInvoices();
+        if (!list || list.length === 0) {
+            Utils.showToast('No invoices to export.', 'warning');
+            return;
+        }
+
+        const printWin = window.open('', '_blank', 'width=900,height=700');
+        if (!printWin) {
+            Utils.showToast('Popup blocked. Please allow popups to download PDF.', 'warning');
+            return;
+        }
+
+        const totalRevenue = list.reduce((sum, i) => sum + (parseFloat(i.grandTotal) || 0), 0);
+
+        let rowsHtml = '';
+        list.forEach(inv => {
+            const custName = inv.customer ? inv.customer.name : '—';
+            const itemsCount = inv.items ? inv.items.length : 0;
+            rowsHtml += `
+        <tr>
+            <td>${Utils.formatDate(inv.date)}</td>
+            <td><strong>${this.escapeHTML(inv.number || '—')}</strong></td>
+            <td>${this.escapeHTML(custName)}</td>
+            <td style="text-align:center;">${itemsCount}</td>
+            <td style="text-align:right;">${(inv.invDiscount || 0) > 0 ? Utils.formatCurrency(inv.invDiscount) : '—'}</td>
+            <td style="text-align:right;"><strong>${Utils.formatCurrency(inv.grandTotal || 0)}</strong></td>
+        </tr>`;
+        });
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Invoices History - Ease Invoice</title>
+    <style>
+        @page { size: A4 portrait; margin: 1.2cm; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; margin: 0; padding: 20px; font-size: 12px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0ea5e9; padding-bottom: 12px; margin-bottom: 16px; }
+        .title { font-size: 20px; font-weight: bold; color: #0f172a; margin: 0 0 4px 0; }
+        .subtitle { font-size: 11px; color: #64748b; margin: 0; }
+        .stats { display: flex; gap: 20px; margin-bottom: 16px; background: #f8fafc; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+        .stat-val { font-size: 13px; font-weight: bold; color: #0ea5e9; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+        th { background: #0ea5e9; color: white; text-align: left; padding: 8px; font-size: 10px; text-transform: uppercase; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .footer { margin-top: 24px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+        @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1 class="title">Ease Invoice — Invoices History</h1>
+            <p class="subtitle">Generated on ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+    </div>
+    <div class="stats">
+        <div class="stat-item"><span class="stat-label">Total Invoices</span><span class="stat-val">${list.length}</span></div>
+        <div class="stat-item"><span class="stat-label">Total Revenue</span><span class="stat-val">${Utils.formatCurrency(totalRevenue)}</span></div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 15%;">Date</th>
+                <th style="width: 22%;">Invoice #</th>
+                <th style="width: 30%;">Customer</th>
+                <th style="width: 10%; text-align:center;">Items</th>
+                <th style="width: 10%; text-align:right;">Discount</th>
+                <th style="width: 13%; text-align:right;">Total Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rowsHtml}
+        </tbody>
+    </table>
+    <div class="footer">
+        Generated by Ease Invoice Pro • Free &amp; Client-side Invoicing
+    </div>
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+</body>
+</html>`;
+
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+
+        Utils.showToast(`Prepared PDF document with ${list.length} invoice(s).`, 'success');
+    },
+
     escapeHTML(str) {
         if (!str) return '';
         return str.replace(/[&<>'"]/g, 
@@ -1342,3 +1773,4 @@ const InvoiceManager = {
 };
 
 window.InvoiceManager = InvoiceManager;
+
