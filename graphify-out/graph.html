@@ -166,6 +166,10 @@
       <select id="ext-filter"><option value="all">All files</option></select>
     </div>
     <div class="filter-row">
+      <label for="rel-filter">Edges</label>
+      <select id="rel-filter"><option value="all">All relations</option></select>
+    </div>
+    <div class="filter-row">
       <label><input type="checkbox" class="cb" id="collapse-leaves"> Hide low-degree leaves</label>
     </div>
     <div class="filter-row">
@@ -271,6 +275,7 @@ const state = {
   hiddenCommunities: new Set(), // community ids to hide
   hiddenTypes: new Set(),       // derived node types to hide
   ext: 'all',                   // file-extension filter
+  rel: 'all',                   // edge-relation filter (dropdown)
   collapseLeaves: false,        // hide nodes with degree <= LEAF_DEGREE
   colorBy: 'community',         // 'community' | 'type'
   edgeLabels: false,
@@ -576,6 +581,7 @@ function buildGraph(raw) {
   buildCommunityLegend();
   buildTypeLegend();
   buildExtFilter();
+  buildRelFilter();
   updateStats();
   applyFilters();          // enforces all filter state on the fresh datasets
   applyColors();
@@ -601,6 +607,7 @@ function nodeHidden(n) {
 function applyFilters() {
   if (!nodesDS) return;
   nodesDS.update(graphData.nodes.map(n => ({ id: n.id, hidden: nodeHidden(n) })));
+  applyEdgeVisibility(); // also refresh edge visibility when node filters change
   updateSelectAllState();
   updateSearchResults(); // keep the search result list consistent with visibility
 }
@@ -616,6 +623,15 @@ function applyColors() {
 function applyEdgeLabels() {
   if (!edgesDS) return;
   edgesDS.update(graphData.links.map(l => ({ id: l.id, label: state.edgeLabels ? l.relation : '' })));
+}
+
+// Hide edges whose relation type is filtered out, or whose source/target is hidden.
+function applyEdgeVisibility() {
+  if (!edgesDS) return;
+  edgesDS.update(graphData.links.map(l => {
+    const relHidden = state.rel !== 'all' && l.relation !== state.rel;
+    return { id: l.id, hidden: relHidden };
+  }));
 }
 
 function applyLabelFonts() {
@@ -844,7 +860,21 @@ function buildExtFilter() {
   extFilter.value = state.ext;
 }
 
-extFilter.addEventListener('change', () => { state.ext = extFilter.value; applyFilters(); });
+const relFilter = document.getElementById('rel-filter');
+
+function buildRelFilter() {
+  relFilter.innerHTML = '<option value="all">All relations</option>';
+  const rels = [...new Set(graphData.links.map(l => l.relation))].sort();
+  rels.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    relFilter.appendChild(opt);
+  });
+  relFilter.value = state.rel;
+}
+
+relFilter.addEventListener('change', () => { state.rel = relFilter.value; applyFilters(); });
 
 /* ============================================================================
  * OTHER CONTROLS

@@ -1,88 +1,66 @@
-# 🤖 Ease Invoice — Agents Guide
+# AGENTS.md — Ease Invoice
 
-> **Supercharge your development workflow with AI agents.**  
-> From automated code reviews to knowledge-graph-powered codebase queries — this guide shows you how to configure, use, and extend agents for the Ease Invoice project.
+> **Purpose:** Universal context file for AI coding agents working on this repository.
+> Any AI tool (Claude Code, Copilot, Cursor, Codebuff, etc.) should read this before making changes.
 
 ---
 
-## 📌 Why Agents for This Repo?
+## Project Overview & Goal
 
-Ease Invoice is a pure vanilla JavaScript (no framework) single-page application. While simple in structure, it has **multiple interconnected modules** (inventory, invoicing, profile, database, UI) that benefit enormously from agent-driven tooling:
+**Ease Invoice** is a free, client-side invoicing and inventory management single-page application. All data lives in the user's browser via IndexedDB — there is no backend, no server, and no cloud sync. The app targets small Indian businesses who need quick GST-compliant invoicing with inventory tracking.
 
-| Benefit | How Agents Help |
+**Core workflows:**
+1. Build and save invoices with line items, GST, and discounts
+2. Manage a product inventory with stock tracking and low-stock alerts
+3. Maintain a customer directory that auto-syncs from saved invoices
+4. Export/import all data as JSON backups
+5. Print invoices in A4 format with business branding
+
+---
+
+## Core Tech Stack & Dependencies
+
+| Layer | Technology |
 |---|---|
-| ⚡ **Automation** | Auto-generate invoices, validate inventory rules, run sanity checks on save |
-| 🧠 **Queryable Knowledge Graphs** | Map out module relationships, data flow, and DOM ↔ JS bindings without reading every file |
-| 🛠️ **Coding Assistance** | AI-powered code completion (Cursor, Copilot) tuned to this repo's vanilla JS patterns |
-| ✅ **Consistency** | Enforce coding conventions (`window.*Manager` globals, `Utils.*` helpers, `async/await` DB calls) |
-| 🔍 **Debugging** | Quickly trace data flow from a `click` event through `db.js` to IndexedDB |
+| Language | Vanilla JavaScript (ES2020+, no TypeScript) |
+| Framework | None — no React, Vue, Angular, or jQuery |
+| Storage | IndexedDB via a custom wrapper (`js/db.js`) |
+| Styling | Plain CSS with CSS custom properties for theming |
+| Fonts | Google Fonts — Inter (400–700) |
+| Build tools | None — no bundler, no transpiler, no `package.json` |
+| Hosting | Static files — open `index.html` in a browser, or deploy to any static host |
+| External libs | None — the app is fully self-contained |
+
+**Never introduce npm packages, bundlers, or frameworks** unless the user explicitly requests it.
 
 ---
 
-## ⚙️ Setup Section
+## Architecture & Directory Structure
 
-### 🔹 Claude Code (Recommended)
-
-Create a `.claude.md` file in the project root:
-
-```markdown
-# Ease Invoice — Agent Instructions
-
-You are an AI assistant for the Ease Invoice project.
-
-## Project Overview
-- Vanilla HTML/CSS/JS single-page app (no framework)
-- Data stored in IndexedDB via `js/db.js`
-- Global module pattern: `window.*Manager` (InvoiceManager, InventoryManager, ProfileManager)
-- Utility library: `window.Utils`
-- Currency: Indian Rupee (INR) — use `Utils.formatCurrency()`
-
-## Conventions
-- UUID v4 for all record IDs via `Utils.generateUUID()`
-- Async/await for DB operations
-- Toast notifications via `Utils.showToast(msg, type)`
-- Escape HTML output with `Manager.escapeHTML()` to prevent XSS
-- Import/export uses JSON blobs via `appDB.exportData()` / `appDB.importData()`
-
-## Key Files
-- `index.html` — Single-page shell with all views
-- `css/style.css` — Theme system (dark/light) + print styles
-- `js/app.js` — Bootstrap, navigation routing, theme toggle
-- `js/db.js` — IndexedDB wrapper (profile, products, invoices stores)
-- `js/invoice.js` — Invoice builder, line items, print, history
-- `js/inventory.js` — Product CRUD, stock tracking, search
-- `js/profile.js` — Business profile, logo upload, data export/import
-- `js/utils.js` — Shared utilities
-
-## Agent Behavior
-- Prefer `read_files` to understand DOM structure before suggesting changes
-- When generating new features, maintain the `window.*Manager` global pattern
-- Always validate HTML IDs exist before referencing them in JS
-- Suggest print-friendly styling for any new invoice-related features
+```
+.
+├── index.html              # Single-page shell — all views live here
+├── css/
+│   └── style.css           # Full theme system (dark/light), layout, print styles
+├── js/
+│   ├── app.js              # Bootstrap, navigation routing, theme toggle, sidebar, tooltips, dock effect
+│   ├── db.js               # IndexedDB wrapper — Database class with put/get/getAll/delete/clear/export/import
+│   ├── utils.js            # Shared helpers — UUID, currency formatting, date, HTML escaping, toast
+│   ├── invoice.js          # InvoiceManager — invoice builder, line items, history, print, downloads
+│   ├── inventory.js        # InventoryManager — product CRUD, stock tracking, restock, search, downloads
+│   ├── customers.js        # CustomersManager — customer directory, bulk actions, purchase history
+│   ├── profile.js          # ProfileManager — business profile, logo upload, data export/import
+│   └── stockHistory.js     # StockHistoryManager — logs every stock change (sale/restock/adjustment)
+└── AGENTS.md               # This file
 ```
 
-### 🔹 GitHub Copilot
+### Module Pattern
 
-Add a `.github/copilot-instructions.md` file:
+Every feature module is a **singleton object** exported as a `window.*Manager` global:
 
-````markdown
-## Ease Invoice — Copilot Instructions
-
-### Code Style
-- Use `const` / `let` (no `var`)
-- Prefer `async/await` over `.then()`
-- Use `Utils.formatCurrency()` for all monetary display
-- Use single quotes for strings
-
-### Architecture
-- Each module is a singleton object in a `window.*Manager` global
-- Database calls go through `window.appDB` (IndexedDB wrapper)
-- UI event bindings happen in `bindEvents()` methods
-
-### Common Patterns
 ```javascript
-// New manager module (example)
 const MyManager = {
+    data: [],
     async init() {
         this.bindEvents();
         await this.loadData();
@@ -91,256 +69,168 @@ const MyManager = {
         this.data = await window.appDB.getAll('storeName');
     },
     bindEvents() {
-        document.getElementById('my-btn').addEventListener('click', () => { ... });
-    }
+        document.getElementById('my-btn').addEventListener('click', () => { /* ... */ });
+    },
 };
 window.MyManager = MyManager;
 ```
-````
 
-### 🔹 Cursor
+**Initialization order** (in `js/app.js`):
+1. `window.appDB.init()` — open IndexedDB
+2. `ProfileManager.init()` — load business profile
+3. `InventoryManager.init()` — load products
+4. `InvoiceManager.init()` — load invoices
+5. `CustomersManager.init()` — load customers
 
-Add `.cursorrules` to the project root:
+### IndexedDB Schema (current version: 3)
 
-```
-You are a Cursor AI agent for the Ease Invoice project.
-This is a vanilla JS SPA using IndexedDB for storage.
-All money values use INR formatting via Utils.formatCurrency().
-HTML element IDs are the source of truth for DOM references.
-Use the global `window.appDB` object for all database operations.
-Each feature module is a singleton exported as `window.FeatureManager`.
-```
-
-### 🔹 Gemini CLI (Google)
-
-Add a `.gemini.yml` in the project root:
-
-```yaml
-project: Ease Invoice
-description: "Free, client-side invoicing and inventory management SPA"
-language: javascript
-framework: vanilla
-conventions:
-  - "window.*Manager global pattern for modules"
-  - "Utils.* for shared helpers"
-  - "async/await for IndexedDB operations"
-  - "INR currency formatting"
-instructions_file: .claude.md
-```
-
-> 💡 **Tip:** You only need **one** of these config files — `.claude.md` is the most complete. The others are listed so you can pick whichever editor/CLI you prefer.
-
----
-
-## 🧩 Agent Roles Table
-
-| Agent Name | Role | Description | File Focus |
-|---|---|---|---|
-| **GraphAgent** 🕸️ | Knowledge Graph Builder | Builds a queryable graph of module dependencies, DOM ↔ JS bindings, and data flow | All `.js`, `index.html` |
-| **SchemaAgent** 🗃️ | Schema Validator | Validates IndexedDB object stores, ensures `put()` data matches expected shapes | `js/db.js`, `js/invoice.js`, `js/inventory.js` |
-| **DocAgent** 📖 | Documentation Helper | Reads source code and generates/updates Markdown docs, JSDoc comments, READMEs | All files |
-| **MediaAgent** 🎨 | Multimedia Assistant | Optimizes logo uploads, generates placeholder images, handles base64 encoding | `js/profile.js`, `css/style.css` |
-| **PrintAgent** 🖨️ | Print Layout Tester | Validates print CSS rules, tests A4 formatting for invoices | `css/style.css`, `index.html` |
-| **ThemeAgent** 🌗 | Theme System Guardian | Ensures dark/light theme consistency, checks CSS custom property usage | `css/style.css`, `js/app.js` |
-| **DataAgent** 💾 | Backup & Restore Validator | Tests export/import JSON round-trips, validates data integrity | `js/db.js`, `js/profile.js` |
-| **StockAgent** 📦 | Inventory Rule Enforcer | Validates stock deduction on invoice save, low-stock alert logic | `js/inventory.js`, `js/invoice.js` |
-| **DataAgent** 💾 | Backup & Restore Validator | Tests export/import JSON round-trips, validates data integrity | `js/db.js`, `js/profile.js` |
-
-### Agent Configuration Example (JSON)
-
-For tools that accept JSON-based agent configs (e.g., custom VS Code tasks, GitHub Actions):
-
-```json
-{
-  "agents": {
-    "graph-agent": {
-      "name": "GraphAgent",
-      "description": "Build knowledge graphs of the Ease Invoice codebase",
-      "prompt": "Analyze the full codebase and produce a dependency graph showing how the HTML views, JS modules, and IndexedDB stores connect."
-    },
-    "schema-agent": {
-      "name": "SchemaAgent",
-      "description": "Validate IndexedDB record shapes",
-      "prompt": "Check that all put() calls to the 'invoices' and 'products' stores include the correct fields matching the defined schema."
-    },
-    "doc-agent": {
-      "name": "DocAgent",
-      "description": "Generate and update documentation",
-      "prompt": "Read the source files and update the corresponding documentation files."
-    },
-    "media-agent": {
-      "name": "MediaAgent",
-      "description": "Handle image and multimedia assets",
-      "prompt": "Optimize images, generate placeholders, or validate base64 encoding."
-    }
-  }
-}
-```
-
----
-
-## 🔗 Integration Tips
-
-### 🖥️ VS Code
-
-1. **Install [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue)** — an open-source AI code assistant
-   - Point it at `.claude.md` for project context
-   - Use `@docs` to reference `MDN` or `IndexedDB` docs in chat
-
-2. **Install [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot)** with `copilot-instructions.md`
-   - Copilot will automatically reference your custom instructions file
-
-3. **Use Tasks** (`.vscode/tasks.json`) to trigger custom agent scripts:
-
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "GraphAgent: Build Knowledge Graph",
-      "type": "shell",
-      "command": "npx graphify init && npx graphify build --dir .",
-      "problemMatcher": []
-    },
-    {
-      "label": "DocAgent: Update Docs",
-      "type": "shell",
-      "command": "npx agent-doc --source js/ --output docs/",
-      "problemMatcher": []
-    }
-  ]
-}
-```
-
-### 🤖 GitHub Actions
-
-Trigger automated agent workflows on push or schedule:
-
-```yaml
-# .github/workflows/codebase-graph.yml
-name: 🕸️ Build Knowledge Graph
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-jobs:
-  graph:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build codebase graph
-        run: npx graphify init && npx graphify build --dir .
-      - name: Upload graph artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: knowledge-graph
-          path: graphify-out/
-```
-
-```yaml
-# .github/workflows/agent-review.yml
-name: 🤖 AI Code Review
-on:
-  pull_request:
-    types: [opened, synchronize]
-
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run SchemaAgent validation
-        run: npx agent-schema --store products,invoices --dir js/
-```
-
-### ⌨️ CLI Usage
-
-Run agents directly from the terminal using Node.js-based agent runners:
-
-```bash
-# Build a knowledge graph of the entire codebase
-npx graphify init && npx graphify build --dir .
-
-# Query the graph (example)
-npx graphify query "What modules touch the 'invoices' IndexedDB store?"
-
-# Run a documentation agent
-npx agent-doc --source js/ --output docs/ --format markdown
-
-# Validate data schemas (conceptual example — adapt to your preferred validator)
-npx ajv validate -s schema.json -d data.json
-# Or with a custom script:
-node scripts/validate-schema.js --store products
-```
-
-#### Agent-Specific Quick Examples
-
-```bash
-# StockAgent — Check low-stock products in the database
-node -e "
-  const request = indexedDB.open('EaseInvoiceDB', 1);
-  request.onsuccess = (e) => {
-    const tx = e.target.result.transaction('products', 'readonly');
-    const store = tx.objectStore('products');
-    store.getAll().onsuccess = (ev) => {
-      const lowStock = ev.target.result.filter(p => p.stockQty <= p.lowStockThreshold);
-      console.log('Low stock items:', lowStock.map(p => p.name));
-    };
-  };
-"
-
-# DataAgent — Verify export/import round-trip integrity
-node scripts/verify-backup.js EaseInvoice_Backup_*.json
-```
-
----
-
-## 🚀 Future Expansion
-
-| Feature | Description | Why It Matters |
+| Store | Key | Indexes |
 |---|---|---|
-| 🧠 **AI-Driven Schema Linking** | Agents automatically detect relationships between IndexedDB stores (e.g., `invoices.items[].productId` ↔ `products.id`) and generate relationship diagrams | Eliminates manual documentation — always up-to-date |
-| 🎥 **Multimedia Graph Queries** | Query the knowledge graph using images or voice: *"Show me where the invoice logo upload flows through the codebase"* | Makes the codebase explorable by non-devs (domain experts, testers) |
-| 🔁 **Auto-Migration Agent** | When you change a data schema, an agent auto-generates IndexedDB version upgrade scripts | Prevents data loss during development |
-| 📊 **Agent Dashboard** | A local web dashboard showing agent activity logs, graph visualizations, and schema validation reports | Centralized observability for all agent operations |
-| 🧪 **Test Generation Agent** | Reads `bindEvents()` and `save*()` methods, then auto-generates Playwright test scripts for critical user flows | Drastically reduces manual QA effort |
-| 🌐 **Multi-Language Agent** | Translates the UI text (invoice labels, form fields) using an agent that reads `index.html` and generates locale JSON files | Makes internationalization a one-command task |
+| `profile` | `id` | — |
+| `products` | `id` | `name`, `company` |
+| `invoices` | `id` | `date`, `number` (unique) |
+| `stockHistory` | `id` | `productId`, `date` |
+| `customers` | `id` | `name`, `phone`, `email` |
+
+### Navigation & Views
+
+The app uses a hash-based SPA router. Navigation links have a `data-target` attribute pointing to a `<section id="view-*">` element. Clicking a nav link hides all views and shows the target. Hash changes are handled via `hashchange` event.
+
+**Views:** `view-dashboard`, `view-inventory`, `view-customers`, `view-settings`
 
 ---
 
-## 💡 Quick Start
+## Code Style & Development Rules
+
+### Dos
+
+- **Use `const` / `let`** — never `var`
+- **Use `async/await`** — never raw `.then()` chains for DB operations
+- **Use `Utils.formatCurrency()`** for all monetary display (INR)
+- **Use `Utils.generateUUID()`** for all record IDs
+- **Use `Utils.escapeHTML()`** for all dynamic content rendered to the DOM — this is the **XSS prevention rule**
+- **Use `Utils.showToast(message, type)`** for user feedback notifications
+- **Keep the `window.*Manager` singleton pattern** when adding new modules
+- **Call `bindEvents()`** during `init()` for any new interactive elements
+- **Use CSS custom properties** (`var(--primary)`, `var(--danger)`, etc.) for all colors
+- **Add `.no-print`** to any element that should not appear on printed invoices
+- **Test at 375px width** — all new features must be responsive
+- **Use single quotes** for JavaScript strings
+- **Use `data-*` attributes** for passing metadata between DOM and JS (e.g., `data-product-id`, `data-format`)
+
+### Don'ts
+
+- **Never use `innerHTML` with raw user input** — always escape first via `Utils.escapeHTML()`
+- **Never bump `DB_VERSION` in `js/db.js` without a migration plan** — existing users will lose data if `onupgradeneeded` doesn't handle the upgrade correctly
+- **Never add npm dependencies** — this is a zero-dependency project
+- **Never use `var`** — use `const` for constants, `let` for reassignable variables
+- **Never hardcode colors** — always use CSS custom properties or theme variables
+- **Never create new HTML files** — the entire UI lives in `index.html`
+- **Never skip the `async` on DB wrapper methods** — all `appDB.*` calls return Promises
+- **Never use `eval()` or `Function()` constructor**
+- **Never modify `db.js` schema** without documenting the change and bumping `DB_VERSION`
+- **Never leave console.log statements** in production code (debugging logs are fine during development)
+
+---
+
+## Run, Test, & Build Commands
+
+### Running Locally
+
+There is no build step. Open `index.html` directly in a browser:
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/your-username/ease-invoice.git
-cd ease-invoice
+# Option 1: Direct file open
+open index.html          # macOS
+xdg-open index.html      # Linux
+start index.html         # Windows
 
-# 2. (Optional) Initialize the knowledge graph
-npx graphify init && npx graphify build --dir .
-
-# 3. Open with your agent-ready editor
-code .   # VS Code + Continue / Copilot
+# Option 2: Local HTTP server (recommended for IndexedDB)
+npx serve .              # or python -m http.server
 ```
 
-> **Pro Tip:** Drop the `.claude.md` file into your project root before opening it with any AI-powered editor — it instantly gives your agents full context about Ease Invoice's architecture, conventions, and data model.
+> **Note:** IndexedDB works fine with `file://` protocol in most browsers, but a local server is more reliable and avoids CORS issues with Google Fonts.
+
+### Testing
+
+**There is currently no automated test suite.** Testing is done manually:
+
+1. Open `index.html` in a local server
+2. Test invoice creation, saving, and printing
+3. Test inventory CRUD, stock deduction on sale, restocking
+4. Test customer directory sync and bulk actions
+5. Test data export/import round-trip
+6. Test dark/light theme toggle
+7. Test responsive layout at 375px, 768px, and 1200px widths
+
+When making changes, verify by:
+- Creating an invoice with multiple line items and printing it
+- Adding a product, selling it, and confirming stock decreases
+- Exporting data and re-importing it to verify integrity
+- Checking the browser console for errors
+
+### Build
+
+**No build step exists.** Files are served as-is. For deployment, copy the entire project directory to any static host.
 
 ---
 
-## 📚 Related Resources
+## Git & Commit Guidelines
 
-- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code) — Anthropic's official guide
-- [GitHub Copilot Custom Instructions](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot) — Official docs
-- [Continue.dev](https://docs.continue.dev/) — Open-source AI code assistant
-- [IndexedDB API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) — Reference for the underlying storage
+### Branch Naming
+
+- `main` — production-ready code
+- `feature/description` — new features
+- `fix/description` — bug fixes
+- `dev` — development/experimental branch
+
+### Commit Messages
+
+Use clear, descriptive commit messages:
+
+```
+Add restock preset buttons and inline panel
+Fix stock deduction on invoice save
+Update customer directory with bulk actions
+```
+
+### What to Commit
+
+- All HTML, CSS, and JS changes
+- Documentation updates
+- Do **not** commit IDE config files (`.idea/`, `.vscode/` except `settings.json`)
+
+### Pull Request Conventions
+
+- Describe what changed and why
+- Note any IndexedDB schema changes
+- Mention which views were tested
+- Include screenshots for UI changes
 
 ---
 
-<p align="center">
-  <sub>Built with ❤️ for developers who love AI-assisted workflows</sub>
-  <br>
-  <sub>Ease Invoice · MIT License</sub>
-</p>
+## Key Patterns & Reference
+
+### Adding a New Feature Module
+
+1. Create `js/newFeature.js` with a `window.NewFeatureManager` singleton
+2. Add a `<script>` tag in `index.html` before `app.js`
+3. Call `NewFeatureManager.init()` in `app.js` during bootstrap
+4. Add a new `<section id="view-*">` in `index.html` if it needs its own view
+5. Add a nav link in the sidebar with `data-target="view-*"`
+
+### Adding a New IndexedDB Store
+
+1. Bump `DB_VERSION` in `js/db.js`
+2. Add the new store in the `onupgradeneeded` handler with its indexes
+3. Handle migration from the previous version — copy or transform existing data if needed
+4. Add `exportData` and `importData` support for the new store
+
+### Multi-Format Download Pattern
+
+The app supports CSV, XLSX, SVG, and PDF exports for inventory, invoices, customers, and stock history. Each uses a dropdown menu with `data-format` attributes. The download handler dispatches to format-specific export methods (e.g., `exportCSV()`, `exportXLSX()`, `exportSVG()`, `exportPDF()`).
+
+---
 
 <!-- BEGIN AGENT KANBAN — DO NOT EDIT THIS SECTION -->
 ## Agent Kanban
