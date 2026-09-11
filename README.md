@@ -48,7 +48,7 @@ Then open `http://localhost:3000` (or `localhost:8000` for Python).
 
 ### Option-3:
 
-Visit our website by tapping on the link: [Ease-Invoice-Pro](https://fraded-panda-25.github.io/Ease-Invoice-Pro/)
+Visit our website by tapping on the link: [Ease-Invoice-Pro](https://ease-invoice-pro.vercel.app/)
 
 ## Tech Stack
 
